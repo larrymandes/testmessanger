@@ -59,7 +59,17 @@ class StorageService {
             timestamp INTEGER NOT NULL,
             status TEXT,
             uid TEXT,
+            message_id TEXT,
             read_sent INTEGER DEFAULT 0
+          )
+        ''');
+
+        // Таблица обработанных Message-ID (для дедупликации)
+        await db.execute('''
+          CREATE TABLE processed_message_ids (
+            account_email TEXT NOT NULL,
+            message_id TEXT NOT NULL,
+            PRIMARY KEY (account_email, message_id)
           )
         ''');
 
@@ -171,6 +181,7 @@ class StorageService {
     required int timestamp,
     String? status,
     String? uid,
+    String? messageId,
   }) async {
     await _database!.insert('messages', {
       'account_email': accountEmail,
@@ -180,6 +191,7 @@ class StorageService {
       'timestamp': timestamp,
       'status': status,
       'uid': uid,
+      'message_id': messageId,
     });
   }
 
@@ -202,6 +214,7 @@ class StorageService {
               'timestamp': r['timestamp'],
               'status': r['status'],
               'uid': r['uid'],
+              'message_id': r['message_id'],
               'readSent': r['read_sent'] == 1,
             })
         .toList();
@@ -259,6 +272,26 @@ class StorageService {
     );
 
     return (results.first['max_uid'] as int?) ?? 0;
+  }
+
+  // === Обработанные Message-ID (для дедупликации как в Delta Chat) ===
+
+  static Future<void> addProcessedMessageId(String accountEmail, String messageId) async {
+    await _database!.insert(
+      'processed_message_ids',
+      {'account_email': accountEmail, 'message_id': messageId},
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
+  }
+
+  static Future<bool> isMessageIdProcessed(String accountEmail, String messageId) async {
+    final results = await _database!.query(
+      'processed_message_ids',
+      where: 'account_email = ? AND message_id = ?',
+      whereArgs: [accountEmail, messageId],
+    );
+
+    return results.isNotEmpty;
   }
 
   // === Пароли (зашифрованные) ===

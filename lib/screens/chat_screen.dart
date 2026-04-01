@@ -145,13 +145,13 @@ class _ChatScreenState extends State<ChatScreen> {
         recipientEmail: widget.contactEmail,
       );
 
-      // Отправляем
-      await widget.emailService.sendMessage(
+      // Отправляем и получаем Message-ID
+      final messageId = await widget.emailService.sendMessage(
         toEmail: widget.contactEmail,
         encryptedPayload: jsonEncode(encrypted),
       );
 
-      // Сохраняем в БД
+      // Сохраняем в БД с Message-ID
       await StorageService.saveMessage(
         accountEmail: widget.myEmail,
         contactEmail: widget.contactEmail,
@@ -160,7 +160,11 @@ class _ChatScreenState extends State<ChatScreen> {
         timestamp: now.millisecondsSinceEpoch,
         status: 'sent',
         uid: messageUID,
+        messageId: messageId,
       );
+      
+      // Сохраняем Message-ID как обработанный (чтобы не обрабатывать свою копию)
+      await StorageService.addProcessedMessageId(widget.myEmail, messageId);
 
       // Обновляем статус на "отправлено"
       final updatedMessage = chatMessage.copyWith(

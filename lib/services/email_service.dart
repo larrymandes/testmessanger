@@ -12,8 +12,11 @@ class EmailService {
 
   ImapClient? _imapClient;
   StreamController<void>? _newMessageController;
-  bool _isIdleActive = false;
+  bool _isIdleRunning = false;
   bool _isFetching = false;
+  int _lastKnownExists = 0;
+  int _lastUidNext = 0; // Как в Delta Chat - отслеживаем UIDNEXT
+  int _uidValidity = 0; // Для проверки что ящик не пересоздан
 
   EmailService({
     required this.email,
@@ -28,101 +31,109 @@ class EmailService {
   Future<void> connectImap() async {
     try {
       _imapClient = ImapClient(isLogEnabled: false);
-      // Порт 993 - это IMAP over SSL (implicit TLS)
       await _imapClient!.connectToServer(imapServer, imapPort, isSecure: true);
       await _imapClient!.login(email, password);
-      await _imapClient!.selectInbox();
+      final selectResult = await _imapClient!.selectInbox();
+      
+      _lastKnownExists = selectResult.exists;
+      _lastUidNext = selectResult.uidNext ?? 0;
+      _uidValidity = selectResult.uidValidity ?? 0;
+      
+      LoggerService.log('IMAP: Connected, EXISTS=$_lastKnownExists, UIDNEXT=$_lastUidNext, UIDVALIDITY=$_uidValidity');
     } catch (e) {
       _imapClient = null;
       rethrow;
     }
   }
 
-  // IMAP IDLE для мгновенных уведомлений
+  // IMAP IDLE для мгновенных уведомлений (как в Delta Chat)
   Stream<void> listenForNewMessages() {
     if (_newMessageController != null && !_newMessageController!.isClosed) {
       return _newMessageController!.stream;
     }
     
     _newMessageController = StreamController<void>.broadcast();
-    
-    // Запускаем IDLE loop в фоне (не блокируем)
     _startIdleLoop();
     
     return _newMessageController!.stream;
   }
 
   void _startIdleLoop() async {
-    if (_isIdleActive) return;
-    _isIdleActive = true;
+    if (_isIdleRunning) return;
+    _isIdleRunning = true;
 
-    while (_isIdleActive && _newMessageController != null && !_newMessageController!.isClosed) {
+    while (_isIdleRunning && _newMessageController != null && !_newMessageController!.isClosed) {
       try {
         if (_imapClient == null) {
           await connectImap();
         }
 
-        // Проверяем поддержку IDLE
         if (!_imapClient!.serverInfo.supportsIdle) {
           LoggerService.log('ERROR: Server does not support IDLE');
           await Future.delayed(const Duration(seconds: 30));
           continue;
         }
 
-        LoggerService.log('IDLE: Starting...');
+        LoggerService.log('IDLE: Starting (EXISTS=$_lastKnownExists)');
         
-        // Подписываемся на события ПЕРЕД запуском IDLE
+        // Слушаем события
         StreamSubscription<ImapEvent>? subscription;
         final completer = Completer<void>();
+        int newExists = _lastKnownExists;
         
         subscription = _imapClient!.eventBus!.on<ImapEvent>().listen((event) {
-          LoggerService.log('IDLE: Event: ${event.runtimeType}');
-          
-          // Реагируем только на новые сообщения (EXISTS)
           if (event is ImapMessagesExistEvent) {
-            LoggerService.log('IDLE: New message detected!');
-            if (!completer.isCompleted) {
-              completer.complete();
+            newExists = event.newMessagesExists;
+            
+            // Уведомляем только если УВЕЛИЧИЛОСЬ
+            if (newExists > _lastKnownExists) {
+              LoggerService.log('IDLE: New message! $_lastKnownExists -> $newExists');
+              if (!completer.isCompleted) {
+                completer.complete();
+              }
             }
           }
         });
         
         // Запускаем IDLE
         await _imapClient!.idleStart();
-        LoggerService.log('IDLE: Active, waiting for new messages...');
+        LoggerService.log('IDLE: Active');
         
-        // Ждём события или 28 минут (IDLE timeout)
+        // Ждём 29 минут или события (как Delta Chat - RFC рекомендует до 30 мин)
         await Future.any([
           completer.future,
-          Future.delayed(const Duration(minutes: 28)),
+          Future.delayed(const Duration(minutes: 29)),
         ]);
         
-        // Останавливаем IDLE
         await subscription.cancel();
         
+        // Останавливаем IDLE
         try {
           await _imapClient!.idleDone();
-          LoggerService.log('IDLE: Done');
+          // NOOP для проверки соединения (как Delta Chat)
+          await _imapClient!.noop();
+          LoggerService.log('IDLE: Done + NOOP ok');
         } catch (e) {
-          LoggerService.log('IDLE: idleDone error: $e');
+          LoggerService.log('IDLE: Done/NOOP error: $e');
+          _imapClient = null;
+          continue;
         }
         
-        // Если получили событие, уведомляем
-        if (completer.isCompleted) {
-          LoggerService.log('IDLE: Notifying UI about new message');
+        // Если было новое письмо
+        if (completer.isCompleted && newExists > _lastKnownExists) {
+          _lastKnownExists = newExists;
+          LoggerService.log('IDLE: Notifying UI');
           if (_newMessageController != null && !_newMessageController!.isClosed) {
             _newMessageController!.add(null);
           }
         }
         
-        // Небольшая пауза перед перезапуском IDLE
-        await Future.delayed(const Duration(milliseconds: 200));
+        // Пауза перед перезапуском
+        await Future.delayed(const Duration(milliseconds: 100));
         
       } catch (e) {
         LoggerService.log('IDLE error: $e');
         _imapClient = null;
-        
-        // Ждём перед повторной попыткой
         await Future.delayed(const Duration(seconds: 5));
       }
     }
@@ -130,7 +141,7 @@ class EmailService {
     LoggerService.log('IDLE: Loop ended');
   }
 
-  // Получение новых сообщений
+  // Получение новых сообщений (как Delta Chat - используем UIDNEXT)
   Future<List<MimeMessage>> fetchNewMessages({int lastSeenUid = 0}) async {
     if (_isFetching) {
       LoggerService.log('Already fetching, skipping');
@@ -138,111 +149,148 @@ class EmailService {
     }
     
     _isFetching = true;
-    bool needRestartIdle = false;
     
     try {
-      // Останавливаем IDLE если активен
-      if (_isIdleActive && _imapClient != null) {
-        try {
-          needRestartIdle = true;
-          await _imapClient!.idleDone();
-          LoggerService.log('IDLE: Paused for fetch');
-          await Future.delayed(const Duration(milliseconds: 100));
-        } catch (e) {
-          LoggerService.log('idleDone error: $e');
-        }
-      }
-      
       if (_imapClient == null) await connectImap();
 
-      // Ищем только UNSEEN письма с [chat] в subject
-      final searchResult = await _imapClient!.searchMessages(
-        searchCriteria: 'UNSEEN SUBJECT "[chat]"',
-      );
-
-      if (searchResult.matchingSequence == null || searchResult.matchingSequence!.isEmpty) {
-        LoggerService.log('No new messages found');
+      // Проверяем UIDVALIDITY - если изменился, ящик пересоздан
+      final selectResult = await _imapClient!.selectInbox();
+      final currentUidValidity = selectResult.uidValidity ?? 0;
+      
+      if (_uidValidity != 0 && currentUidValidity != _uidValidity) {
+        LoggerService.log('UIDVALIDITY changed! Mailbox was recreated. Resetting.');
+        _uidValidity = currentUidValidity;
+        _lastUidNext = selectResult.uidNext ?? 0;
+        // Нужно пересинхронизировать всё, но пока просто сбрасываем
         return [];
       }
-
-      LoggerService.log('Found ${searchResult.matchingSequence!.length} new messages');
       
-      final messages = <MimeMessage>[];
-      for (final uid in searchResult.matchingSequence!.toList()) {
-        if (uid <= lastSeenUid || uid == 0) {
-          LoggerService.log('Skipping UID: $uid (old or invalid)');
-          continue;
-        }
-
-        try {
-          final fetchResult = await _imapClient!.fetchMessage(uid, '(RFC822)');
-          if (fetchResult.messages.isNotEmpty) {
-            messages.add(fetchResult.messages.first);
-            LoggerService.log('Fetched message UID: $uid');
-            
-            // Помечаем как прочитанное
-            await _imapClient!.store(
-              MessageSequence.fromId(uid),
-              [r'\Seen'],
-              action: StoreAction.add,
-            );
-          }
-        } catch (e) {
-          LoggerService.log('Error fetching UID $uid: $e');
-        }
+      _uidValidity = currentUidValidity;
+      final currentUidNext = selectResult.uidNext ?? 0;
+      
+      // Если UIDNEXT не изменился - новых писем нет
+      if (currentUidNext <= _lastUidNext) {
+        LoggerService.log('No new messages (UIDNEXT=$currentUidNext)');
+        return [];
       }
-
+      
+      LoggerService.log('New messages detected! UIDNEXT: $_lastUidNext -> $currentUidNext');
+      
+      // Батчинг: fetch по 50 писем за раз (как Delta Chat, но проще)
+      final startUid = _lastUidNext > 0 ? _lastUidNext : 1;
+      final totalNew = currentUidNext - startUid;
+      final messages = <MimeMessage>[];
+      
+      if (totalNew > 50) {
+        LoggerService.log('Batching: $totalNew messages, fetching in batches of 50');
+        
+        // Fetch батчами
+        for (int batchStart = startUid; batchStart < currentUidNext; batchStart += 50) {
+          final batchEnd = (batchStart + 49 < currentUidNext) ? batchStart + 49 : currentUidNext - 1;
+          
+          LoggerService.log('Batch: UID $batchStart:$batchEnd');
+          
+          final fetchResult = await _imapClient!.uidFetch(
+            MessageSequence.fromRange(batchStart, batchEnd),
+            '(UID BODY.PEEK[] BODY.PEEK[HEADER.FIELDS (FROM SUBJECT MESSAGE-ID)])',
+          );
+          
+          messages.addAll(_filterChatMessages(fetchResult.messages, lastSeenUid));
+          
+          // Пауза между батчами
+          await Future.delayed(const Duration(milliseconds: 100));
+        }
+      } else {
+        // Обычный fetch если писем мало
+        final fetchResult = await _imapClient!.uidFetch(
+          MessageSequence.fromRangeToLast(startUid),
+          '(UID BODY.PEEK[] BODY.PEEK[HEADER.FIELDS (FROM SUBJECT MESSAGE-ID)])',
+        );
+        
+        messages.addAll(_filterChatMessages(fetchResult.messages, lastSeenUid));
+      }
+      
+      // Обновляем UIDNEXT
+      _lastUidNext = currentUidNext;
+      
+      LoggerService.log('Fetched ${messages.length} new chat messages');
       return messages;
+      
     } catch (e) {
       LoggerService.log('fetchNewMessages error: $e');
-      // Если ошибка подключения, сбрасываем клиент для переподключения
       if (e.toString().contains('Connection') || e.toString().contains('Socket')) {
         _imapClient = null;
-        _isIdleActive = false;
-        needRestartIdle = false;
+        _isIdleRunning = false;
       }
       rethrow;
     } finally {
       _isFetching = false;
-      
-      // Перезапускаем IDLE после fetch
-      if (needRestartIdle && _imapClient != null) {
-        try {
-          await _imapClient!.idleStart();
-          LoggerService.log('IDLE: Resumed after fetch');
-        } catch (e) {
-          LoggerService.log('Failed to resume IDLE: $e');
-          _isIdleActive = false;
-        }
-      }
     }
   }
 
-  // Отправка сообщения
-  Future<void> sendMessage({
+  // Helper: фильтрация chat сообщений
+  List<MimeMessage> _filterChatMessages(List<MimeMessage> messages, int lastSeenUid) {
+    final filtered = <MimeMessage>[];
+    
+    for (final msg in messages) {
+      final uid = msg.uid ?? 0;
+      final subject = msg.decodeSubject() ?? '';
+      final from = msg.from?.first?.email ?? '';
+      
+      // Фильтруем только [chat] письма
+      if (!subject.contains('[chat]')) {
+        LoggerService.log('UID=$uid: Not a chat message, skipping');
+        continue;
+      }
+      
+      // Пропускаем уже обработанные
+      if (uid <= lastSeenUid) {
+        LoggerService.log('UID=$uid: Already processed');
+        continue;
+      }
+      
+      LoggerService.log('UID=$uid: New chat message from $from');
+      filtered.add(msg);
+    }
+    
+    return filtered;
+  }
+
+  // Помечаем письмо как прочитанное
+  Future<void> markMessageAsSeen(int uid) async {
+    try {
+      if (_imapClient == null) return;
+      
+      await _imapClient!.store(
+        MessageSequence.fromId(uid),
+        [r'\Seen'],
+        action: StoreAction.add,
+      );
+      
+      LoggerService.log('Marked UID $uid as SEEN');
+    } catch (e) {
+      LoggerService.log('markMessageAsSeen error: $e');
+    }
+  }
+
+  // Отправка сообщения (возвращает Message-ID для дедупликации)
+  Future<String> sendMessage({
     required String toEmail,
     required String encryptedPayload,
+    bool bccToSelf = true, // BCC to self для мульти-девайс (как Delta Chat)
   }) async {
     SmtpClient? client;
     
     try {
-      // Всегда создаём новый клиент для каждой отправки
-      // Это решает проблему "StreamSink is bound to a stream"
+      // Новый клиент для каждой отправки (решает "StreamSink is bound")
       client = SmtpClient('secure_messenger', isLogEnabled: false);
       
       LoggerService.log('SMTP: Connecting to $smtpServer:$smtpPort');
       
-      // Для порта 587 подключаемся БЕЗ SSL, потом делаем STARTTLS
       await client.connectToServer(smtpServer, smtpPort, isSecure: false);
-      LoggerService.log('SMTP: Connected, sending EHLO');
-      
       await client.ehlo();
-      LoggerService.log('SMTP: EHLO done, starting TLS');
-      
       await client.startTls();
-      LoggerService.log('SMTP: TLS started, authenticating');
       
-      // Используем authenticate вместо login
       if (client.serverInfo.supportsAuth(AuthMechanism.plain)) {
         await client.authenticate(email, password, AuthMechanism.plain);
       } else if (client.serverInfo.supportsAuth(AuthMechanism.login)) {
@@ -251,37 +299,51 @@ class EmailService {
       
       LoggerService.log('SMTP: Authenticated');
 
-      final message = MessageBuilder.buildSimpleTextMessage(
-        MailAddress('', email),
-        [MailAddress('', toEmail)],
-        encryptedPayload,
-        subject: '[chat]',
-      );
-
-      LoggerService.log('SMTP: Sending message to $toEmail');
-      await client.sendMessage(message);
-      LoggerService.log('SMTP: Message sent successfully');
+      // Создаём уникальный Message-ID (как Delta Chat)
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final random = DateTime.now().microsecond;
+      final messageId = '<$timestamp.$random@${email.split('@')[1]}>';
       
-      // Закрываем соединение
+      final builder = MessageBuilder()
+        ..from = [MailAddress('', email)]
+        ..to = [MailAddress('', toEmail)]
+        ..subject = '[chat]'
+        ..text = encryptedPayload;
+      
+      // BCC to self для синхронизации между устройствами (как Delta Chat)
+      if (bccToSelf) {
+        builder.bcc = [MailAddress('', email)];
+        LoggerService.log('SMTP: BCC to self enabled');
+      }
+      
+      // Добавляем Message-ID вручную
+      final message = builder.buildMimeMessage();
+      message.headers['message-id'] = messageId;
+
+      LoggerService.log('SMTP: Sending (Message-ID: $messageId)');
+      await client.sendMessage(message);
+      LoggerService.log('SMTP: Sent');
+      
       await client.quit();
-      LoggerService.log('SMTP: Connection closed');
+      
+      // Возвращаем Message-ID для сохранения в БД
+      return messageId;
       
     } catch (e) {
       LoggerService.log('SMTP error: $e');
       rethrow;
     } finally {
-      // Всегда закрываем соединение
       try {
         await client?.quit();
       } catch (e) {
-        // Игнорируем ошибки при закрытии
+        // Игнорируем
       }
     }
   }
 
   // Закрытие соединений
   Future<void> disconnect() async {
-    _isIdleActive = false;
+    _isIdleRunning = false;
     await _imapClient?.logout();
     if (_newMessageController != null && !_newMessageController!.isClosed) {
       await _newMessageController?.close();

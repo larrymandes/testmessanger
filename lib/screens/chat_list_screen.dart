@@ -29,6 +29,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   late EmailService _emailService;
   final Map<String, Map<String, dynamic>> _chats = {};
   bool _isLoading = true;
+  bool _isFetching = false; // Защита от дублирования fetch
   String _connectionStatus = 'Подключение...';
   AsymmetricKeyPair<PublicKey, PrivateKey>? _myKeyPair;
   String? _myPublicKeyHex;
@@ -132,26 +133,35 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Future<void> _fetchNewMessages() async {
+    if (_isFetching) {
+      LoggerService.log('Already fetching, skipping');
+      return;
+    }
+    
+    _isFetching = true;
+    
     try {
-      LoggerService.log('Fetching new messages...');
       final maxUID = await StorageService.getMaxProcessedUID(widget.email);
+      LoggerService.log('Fetching (last UID: $maxUID)...');
+      
       final newMessages = await _emailService.fetchNewMessages(lastSeenUid: maxUID);
       
-      LoggerService.log('Found ${newMessages.length} new messages');
+      LoggerService.log('Got ${newMessages.length} new messages');
       
       for (final mimeMessage in newMessages) {
         await _processMessage(mimeMessage);
       }
       
-      if (newMessages.isNotEmpty) {
+      if (newMessages.isNotEmpty && mounted) {
         await _loadContacts();
       }
     } catch (e) {
       LoggerService.log('Fetch error: $e');
-      setState(() => _connectionStatus = 'Ошибка');
       if (mounted) {
-        _showErrorWithCopy('Ошибка получения', e.toString());
+        setState(() => _connectionStatus = 'Ошибка');
       }
+    } finally {
+      _isFetching = false;
     }
   }
 
@@ -160,29 +170,54 @@ class _ChatListScreenState extends State<ChatListScreen> {
       final from = mimeMessage.from?.first?.email ?? '';
       final body = mimeMessage.decodeTextPlainPart() ?? '';
       final uid = mimeMessage.uid ?? 0;
+      final messageId = mimeMessage.headers['message-id'] ?? '';
       
-      // Игнорируем письма без UID (старые или битые)
+      // Пропускаем битые
       if (uid == 0) {
-        LoggerService.log('Skipping message with UID 0 from $from');
+        LoggerService.log('UID=0, skipping');
         return;
       }
       
-      LoggerService.log('Processing message from $from, UID: $uid');
+      // Дедупликация по Message-ID (как Delta Chat)
+      if (messageId.isNotEmpty) {
+        if (await StorageService.isMessageIdProcessed(widget.email, messageId)) {
+          LoggerService.log('Message-ID already processed: $messageId');
+          await StorageService.addProcessedUID(widget.email, uid);
+          await _emailService.markMessageAsSeen(uid);
+          return;
+        }
+      }
       
-      // Проверяем не обработано ли уже
+      // Пропускаем свои письма (дополнительная защита)
+      if (from == widget.email) {
+        LoggerService.log('Own message, skipping');
+        await StorageService.addProcessedUID(widget.email, uid);
+        if (messageId.isNotEmpty) {
+          await StorageService.addProcessedMessageId(widget.email, messageId);
+        }
+        await _emailService.markMessageAsSeen(uid);
+        return;
+      }
+      
+      // Проверяем не обработано ли по UID
       if (await StorageService.isUIDProcessed(widget.email, uid)) {
-        LoggerService.log('UID $uid already processed, skipping');
+        LoggerService.log('UID=$uid already processed');
         return;
       }
       
-      // Парсим зашифрованный payload
+      LoggerService.log('Processing UID=$uid from $from');
+      
+      // Парсим JSON
       Map<String, dynamic> encrypted;
       try {
         encrypted = jsonDecode(body) as Map<String, dynamic>;
-        LoggerService.log('Encrypted keys: ${encrypted.keys.join(", ")}');
       } catch (e) {
-        LoggerService.log('Not JSON, skipping (old format?)');
+        LoggerService.log('Not JSON, skipping');
         await StorageService.addProcessedUID(widget.email, uid);
+        if (messageId.isNotEmpty) {
+          await StorageService.addProcessedMessageId(widget.email, messageId);
+        }
+        await _emailService.markMessageAsSeen(uid);
         return;
       }
       
@@ -193,41 +228,42 @@ class _ChatListScreenState extends State<ChatListScreen> {
           encrypted: encrypted.map((k, v) => MapEntry(k, v.toString())),
           myKeyPair: _myKeyPair!,
         );
-        final preview = plaintext.length > 50 ? plaintext.substring(0, 50) : plaintext;
-        LoggerService.log('Decrypted: $preview...');
+        LoggerService.log('Decrypted ok');
       } catch (e) {
-        LoggerService.log('Decryption failed (wrong key?), skipping');
-        // Помечаем как обработанное чтобы не пытаться снова
+        LoggerService.log('Decryption failed (wrong key)');
         await StorageService.addProcessedUID(widget.email, uid);
+        if (messageId.isNotEmpty) {
+          await StorageService.addProcessedMessageId(widget.email, messageId);
+        }
+        await _emailService.markMessageAsSeen(uid);
         return;
       }
       
-      // Парсим содержимое
+      // Обрабатываем
       try {
         final parsed = jsonDecode(plaintext);
-        LoggerService.log('Message type: ${parsed['type'] ?? 'text'}');
         
-        // Обработка приглашения
         if (parsed['type'] == 'invite') {
           await _handleInvite(parsed, from);
-        }
-        // Обработка read receipt
-        else if (parsed['type'] == 'read_receipt') {
+        } else if (parsed['type'] == 'read_receipt') {
           await _handleReadReceipt(parsed, from);
-        }
-        // Обычное сообщение
-        else if (parsed['text'] != null && parsed['uid'] != null) {
-          await _handleTextMessage(parsed, from, uid);
+        } else if (parsed['text'] != null) {
+          await _handleTextMessage(parsed, from, uid, messageId);
         }
       } catch (e) {
-        // Старый формат без JSON
-        LoggerService.log('Not JSON, treating as plain text');
-        await _handleTextMessage({'text': plaintext, 'uid': uid.toString()}, from, uid);
+        // Старый формат
+        await _handleTextMessage({'text': plaintext, 'uid': uid.toString()}, from, uid, messageId);
       }
       
+      // Помечаем как обработанное
       await StorageService.addProcessedUID(widget.email, uid);
+      if (messageId.isNotEmpty) {
+        await StorageService.addProcessedMessageId(widget.email, messageId);
+      }
+      await _emailService.markMessageAsSeen(uid);
+      
     } catch (e) {
-      LoggerService.log('Process message error: $e');
+      LoggerService.log('Process error: $e');
     }
   }
 
@@ -235,29 +271,26 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final contactEmail = invite['email'] as String;
     final contactPubKey = invite['pubkey'] as String;
     
-    LoggerService.log('Handling invite from $contactEmail');
+    LoggerService.log('Invite from $contactEmail');
     
-    // Проверяем, не добавлен ли уже
+    // Проверяем не добавлен ли
     final existing = await StorageService.getContact(widget.email, contactEmail);
     if (existing != null) {
-      LoggerService.log('Contact $contactEmail already exists');
+      LoggerService.log('Already exists');
       return;
     }
     
-    // Сохраняем контакт (БЕЗ отправки invite обратно, как в оригинале)
+    // Сохраняем контакт
     await StorageService.saveContact(
       accountEmail: widget.email,
       contactEmail: contactEmail,
       publicKey: contactPubKey,
     );
     
-    LoggerService.log('Contact $contactEmail saved');
-    
-    // Перезагружаем список контактов
-    await _loadContacts();
+    LoggerService.log('Contact saved');
     
     if (mounted) {
-      setState(() {});
+      await _loadContacts();
     }
   }
 
@@ -266,12 +299,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
     if (messageUID != null) {
       await StorageService.updateMessageStatus(widget.email, messageUID, 'read');
       LoggerService.log('Message $messageUID marked as read');
-      // Обновляем UI
-      await _loadContacts();
+      if (mounted) {
+        await _loadContacts();
+      }
     }
   }
 
-  Future<void> _handleTextMessage(Map<String, dynamic> message, String from, int uid) async {
+  Future<void> _handleTextMessage(Map<String, dynamic> message, String from, int uid, String messageId) async {
     await StorageService.saveMessage(
       accountEmail: widget.email,
       contactEmail: from,
@@ -279,13 +313,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
       sent: false,
       timestamp: DateTime.now().millisecondsSinceEpoch,
       uid: message['uid'],
+      messageId: messageId.isNotEmpty ? messageId : null,
     );
-    LoggerService.log('Text message saved from $from');
+    LoggerService.log('Message saved');
     
-    // Перезагружаем контакты чтобы обновить UI
-    await _loadContacts();
     if (mounted) {
-      setState(() {});
+      await _loadContacts();
     }
   }
 

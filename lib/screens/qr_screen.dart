@@ -180,7 +180,17 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
       // Проверяем, не добавлен ли уже
       final existing = await StorageService.getContact(widget.myEmail, contactEmail);
       if (existing != null) {
-        throw Exception('Контакт уже добавлен');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✓ Контакт уже добавлен'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+          Navigator.pop(context);
+        }
+        return;
       }
 
       // Сохраняем контакт
@@ -209,12 +219,22 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
           toEmail: contactEmail,
           encryptedPayload: jsonEncode(encrypted),
         );
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✓ Контакт добавлен и приглашение отправлено'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
       } catch (e) {
         // Контакт сохранён, но invite не отправлен
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Приглашение не отправлено: $e'),
+              content: Text('Контакт добавлен, но приглашение не отправлено: $e'),
               backgroundColor: Colors.orange,
               duration: const Duration(seconds: 5),
               behavior: SnackBarBehavior.floating,
