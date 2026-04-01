@@ -170,7 +170,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       final from = mimeMessage.from?.first?.email ?? '';
       final body = mimeMessage.decodeTextPlainPart() ?? '';
       final uid = mimeMessage.uid ?? 0;
-      final messageId = mimeMessage.headers['message-id'] ?? '';
+      final messageId = mimeMessage.decodeHeaderValue('message-id') ?? '';
       
       // Пропускаем битые
       if (uid == 0) {
@@ -243,15 +243,21 @@ class _ChatListScreenState extends State<ChatListScreen> {
       try {
         final parsed = jsonDecode(plaintext);
         
+        LoggerService.log('Message type: ${parsed['type'] ?? 'text'}');
+        
         if (parsed['type'] == 'invite') {
+          LoggerService.log('Processing invite...');
           await _handleInvite(parsed, from);
         } else if (parsed['type'] == 'read_receipt') {
+          LoggerService.log('Processing read receipt...');
           await _handleReadReceipt(parsed, from);
         } else if (parsed['text'] != null) {
+          LoggerService.log('Processing text message...');
           await _handleTextMessage(parsed, from, uid, messageId);
         }
       } catch (e) {
         // Старый формат
+        LoggerService.log('Old format, treating as text');
         await _handleTextMessage({'text': plaintext, 'uid': uid.toString()}, from, uid, messageId);
       }
       
@@ -271,12 +277,18 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final contactEmail = invite['email'] as String;
     final contactPubKey = invite['pubkey'] as String;
     
-    LoggerService.log('Invite from $contactEmail');
+    LoggerService.log('Invite from $contactEmail (received from $from)');
+    
+    // Проверяем что from совпадает с contactEmail (защита от подделки)
+    if (from != contactEmail) {
+      LoggerService.log('WARNING: from ($from) != contactEmail ($contactEmail), skipping');
+      return;
+    }
     
     // Проверяем не добавлен ли
     final existing = await StorageService.getContact(widget.email, contactEmail);
     if (existing != null) {
-      LoggerService.log('Already exists');
+      LoggerService.log('Contact already exists');
       return;
     }
     
@@ -287,10 +299,19 @@ class _ChatListScreenState extends State<ChatListScreen> {
       publicKey: contactPubKey,
     );
     
-    LoggerService.log('Contact saved');
+    LoggerService.log('Contact $contactEmail saved successfully');
     
     if (mounted) {
       await _loadContacts();
+      
+      // Показываем уведомление
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✓ Новый контакт добавлен: $contactEmail'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
   }
 

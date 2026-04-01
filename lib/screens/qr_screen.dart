@@ -181,6 +181,9 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
       final existing = await StorageService.getContact(widget.myEmail, contactEmail);
       if (existing != null) {
         if (mounted) {
+          // Останавливаем камеру
+          await _controller.stop();
+          
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('✓ Контакт уже добавлен'),
@@ -199,14 +202,20 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
         contactEmail: contactEmail,
         publicKey: publicKey,
       );
+      
+      LoggerService.log('QR: Contact $contactEmail saved locally');
 
       // Отправляем invite обратно для взаимного добавления
       try {
+        LoggerService.log('QR: Sending invite to $contactEmail...');
+        
         final inviteMessage = jsonEncode({
           'type': 'invite',
           'email': widget.myEmail,
           'pubkey': widget.myPublicKeyHex,
         });
+        
+        LoggerService.log('QR: Encrypting invite...');
         
         final encrypted = await CryptoService.encryptMessage(
           plaintext: inviteMessage,
@@ -215,12 +224,19 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
           recipientEmail: contactEmail,
         );
         
+        LoggerService.log('QR: Sending via SMTP...');
+        
         await widget.emailService.sendMessage(
           toEmail: contactEmail,
           encryptedPayload: jsonEncode(encrypted),
         );
         
+        LoggerService.log('QR: Invite sent successfully!');
+        
         if (mounted) {
+          // Останавливаем камеру
+          await _controller.stop();
+          
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('✓ Контакт добавлен и приглашение отправлено'),
@@ -228,10 +244,19 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
               duration: Duration(seconds: 2),
             ),
           );
+          
+          // Закрываем экран сканирования
+          Navigator.pop(context);
+          
+          // Уведомляем родителя
+          await widget.onContactAdded(contactEmail, publicKey);
         }
       } catch (e) {
         // Контакт сохранён, но invite не отправлен
         if (mounted) {
+          // Останавливаем камеру
+          await _controller.stop();
+          
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Контакт добавлен, но приглашение не отправлено: $e'),
@@ -248,13 +273,13 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
               ),
             ),
           );
+          
+          // Закрываем экран сканирования
+          Navigator.pop(context);
+          
+          // Уведомляем родителя
+          await widget.onContactAdded(contactEmail, publicKey);
         }
-      }
-
-      if (mounted) {
-        // Закрываем экран сканирования и возвращаемся в список чатов
-        Navigator.pop(context);
-        await widget.onContactAdded(contactEmail, publicKey);
       }
     } catch (e) {
       if (mounted) {
