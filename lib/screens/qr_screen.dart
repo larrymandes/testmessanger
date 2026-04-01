@@ -6,6 +6,7 @@ import 'dart:convert';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
 import '../services/email_service.dart';
+import '../services/logger_service.dart';
 
 class QRScreen extends StatelessWidget {
   final String myEmail;
