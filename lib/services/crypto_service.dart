@@ -2,13 +2,14 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:math' show Random;
 import 'package:cryptography/cryptography.dart';
-import 'package:pointycastle/export.dart';
+import 'package:pointycastle/export.dart' hide Mac;
 
 class CryptoService {
   // Генерация ключевой пары ECDH P-256
   static Future<SimpleKeyPair> generateKeyPair() async {
     final algorithm = Ecdh.p256(length: 32);
-    return await algorithm.newKeyPair();
+    final keyPair = await algorithm.newKeyPair();
+    return keyPair as SimpleKeyPair;
   }
 
   // Экспорт публичного ключа в hex

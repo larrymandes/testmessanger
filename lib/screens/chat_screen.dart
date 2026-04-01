@@ -158,24 +158,20 @@ class _ChatScreenState extends State<ChatScreen> {
       );
 
       // Обновляем статус на "отправлено"
-      _chatController.updateMessage(
-        messageUID,
-        chatMessage.copyWith(
-          sentAt: now,
-          metadata: null,
-        ),
+      final updatedMessage = chatMessage.copyWith(
+        sentAt: now,
+        metadata: null,
       );
+      _chatController.updateMessage(chatMessage, updatedMessage);
     } catch (e) {
       print('Send error: $e');
       
       // Обновляем статус на "ошибка"
-      _chatController.updateMessage(
-        messageUID,
-        chatMessage.copyWith(
-          failedAt: now,
-          metadata: null,
-        ),
+      final updatedMessage = chatMessage.copyWith(
+        failedAt: now,
+        metadata: null,
       );
+      _chatController.updateMessage(chatMessage, updatedMessage);
     }
   }
 

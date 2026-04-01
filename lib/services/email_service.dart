@@ -34,10 +34,20 @@ class EmailService {
   Stream<void> listenForNewMessages() {
     _newMessageController = StreamController<void>.broadcast();
     
-    _imapClient?.idleStart().listen((event) {
-      if (event.eventType == ImapEventType.exists || 
-          event.eventType == ImapEventType.recent) {
-        _newMessageController?.add(null);
+    // IMAP IDLE работает через polling в enough_mail
+    // Используем таймер для проверки новых сообщений
+    Timer.periodic(const Duration(seconds: 5), (timer) async {
+      try {
+        final searchResult = await _imapClient?.searchMessages(
+          searchCriteria: 'UNSEEN SUBJECT "[chat]"',
+        );
+        
+        if (searchResult?.matchingSequence != null && 
+            searchResult!.matchingSequence!.isNotEmpty()) {
+          _newMessageController?.add(null);
+        }
+      } catch (e) {
+        print('IDLE check error: $e');
       }
     });
 
@@ -86,7 +96,13 @@ class EmailService {
       await _smtpClient!.connectToServer(smtpServer, smtpPort);
       await _smtpClient!.ehlo();
       await _smtpClient!.startTls();
-      await _smtpClient!.login(email, password);
+      
+      // Используем authenticate вместо login
+      if (_smtpClient!.serverInfo.supportsAuth(AuthMechanism.plain)) {
+        await _smtpClient!.authenticate(email, password, AuthMechanism.plain);
+      } else if (_smtpClient!.serverInfo.supportsAuth(AuthMechanism.login)) {
+        await _smtpClient!.authenticate(email, password, AuthMechanism.login);
+      }
     }
 
     final message = MessageBuilder.buildSimpleTextMessage(
