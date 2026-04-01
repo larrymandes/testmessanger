@@ -119,17 +119,17 @@ class EmailService {
           continue;
         }
         
-        // Если было новое письмо
+        // Если было новое письмо - уведомляем UI
         if (completer.isCompleted && newExists > _lastKnownExists) {
           _lastKnownExists = newExists;
-          LoggerService.log('IDLE: Notifying UI');
+          LoggerService.log('IDLE: Notifying UI (EXISTS: $_lastKnownExists)');
           if (_newMessageController != null && !_newMessageController!.isClosed) {
             _newMessageController!.add(null);
           }
         }
         
-        // Пауза перед перезапуском
-        await Future.delayed(const Duration(milliseconds: 100));
+        // Сразу перезапускаем IDLE (как Delta Chat - не ждём)
+        await Future.delayed(const Duration(milliseconds: 50));
         
       } catch (e) {
         LoggerService.log('IDLE error: $e');
@@ -181,6 +181,8 @@ class EmailService {
       final totalNew = currentUidNext - startUid;
       final messages = <MimeMessage>[];
       
+      LoggerService.log('fetch_new_msg_batch(INBOX): UIDVALIDITY=$_uidValidity, UIDNEXT=$currentUidNext');
+      
       if (totalNew > 50) {
         LoggerService.log('Batching: $totalNew messages, fetching in batches of 50');
         
@@ -190,36 +192,39 @@ class EmailService {
           
           LoggerService.log('Batch: UID $batchStart:$batchEnd');
           
-          // Используем uidSearch + fetchMessages для батча
-          final uids = await _imapClient!.uidSearch('UID $batchStart:$batchEnd');
-          if (uids.isNotEmpty) {
-            final fetchResult = await _imapClient!.fetchMessages(
-              uids,
-              'BODY.PEEK[]',
-            );
-            
-            messages.addAll(_filterChatMessages(fetchResult.messages, lastSeenUid));
-          }
+          // Используем uidSearchMessages + uidFetchMessages для батча
+          // Для uidSearchMessages используем просто 'ALL' и потом фильтруем по UID через MessageSequence
+          // Или проще - сразу используем uidFetchMessages с MessageSequence
+          final sequence = MessageSequence.fromRange(batchStart, batchEnd);
+          final fetchResult = await _imapClient!.uidFetchMessages(
+            sequence,
+            'BODY.PEEK[]',
+          );
+          
+          messages.addAll(_filterChatMessages(fetchResult.messages, lastSeenUid));
           
           // Пауза между батчами
           await Future.delayed(const Duration(milliseconds: 100));
         }
       } else {
         // Обычный fetch если писем мало
-        final uids = await _imapClient!.uidSearch('UID $startUid:*');
-        if (uids.isNotEmpty) {
-          final fetchResult = await _imapClient!.fetchMessages(
-            uids,
-            'BODY.PEEK[]',
-          );
-          
-          messages.addAll(_filterChatMessages(fetchResult.messages, lastSeenUid));
-        }
+        LoggerService.log('Starting UID FETCH of message set "$startUid:*"');
+        
+        // Используем MessageSequence для диапазона UID
+        final sequence = MessageSequence.fromRangeToLast(startUid);
+        final fetchResult = await _imapClient!.uidFetchMessages(
+          sequence,
+          'BODY.PEEK[]',
+        );
+        
+        LoggerService.log('Successfully received ${fetchResult.messages.length} messages.');
+        messages.addAll(_filterChatMessages(fetchResult.messages, lastSeenUid));
       }
       
       // Обновляем UIDNEXT
       _lastUidNext = currentUidNext;
       
+      LoggerService.log('${messages.length} mails read from "INBOX".');
       LoggerService.log('Fetched ${messages.length} new chat messages');
       return messages;
       
@@ -274,7 +279,7 @@ class EmailService {
         action: StoreAction.add,
       );
       
-      LoggerService.log('Marked UID $uid as SEEN');
+      LoggerService.log('Marked message $uid in folder INBOX as seen.');
     } catch (e) {
       LoggerService.log('markMessageAsSeen error: $e');
     }
@@ -311,6 +316,8 @@ class EmailService {
       final random = DateTime.now().microsecond;
       final messageId = '<$timestamp.$random@${email.split('@')[1]}>';
       
+      LoggerService.log('Message will be sent with Message-ID: $messageId');
+      
       final builder = MessageBuilder()
         ..from = [MailAddress('', email)]
         ..to = [MailAddress('', toEmail)]
@@ -328,9 +335,9 @@ class EmailService {
 
       final message = builder.buildMimeMessage();
 
-      LoggerService.log('SMTP: Sending (Message-ID: $messageId)');
+      LoggerService.log('Sending message to $toEmail...');
       await client.sendMessage(message);
-      LoggerService.log('SMTP: Sent');
+      LoggerService.log('Message was SMTP-sent to $toEmail.');
       
       await client.quit();
       
