@@ -53,7 +53,23 @@ class _ChatListScreenState extends State<ChatListScreen> {
       await _loadContacts();
       
       // Подключаемся к IMAP
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Подключение к почте...')),
+        );
+      }
+      
       await _emailService.connectImap();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✓ Подключено'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
       
       // Слушаем новые сообщения
       _emailService.listenForNewMessages().listen((_) {
@@ -65,7 +81,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка подключения: $e')),
+          SnackBar(
+            content: Text('✗ Ошибка подключения: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     } finally {
@@ -127,9 +147,22 @@ class _ChatListScreenState extends State<ChatListScreen> {
       
       if (newMessages.isNotEmpty) {
         await _loadContacts();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Получено ${newMessages.length} сообщений')),
+          );
+        }
       }
     } catch (e) {
       print('Fetch error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка получения: $e'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     }
   }
 
@@ -177,6 +210,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
       await StorageService.addProcessedUID(widget.email, uid);
     } catch (e) {
       print('Process message error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка обработки сообщения: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -214,6 +255,15 @@ class _ChatListScreenState extends State<ChatListScreen> {
       timestamp: DateTime.now().millisecondsSinceEpoch,
       uid: message['uid'],
     );
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('📩 Новое сообщение от $from'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   @override
@@ -222,6 +272,19 @@ class _ChatListScreenState extends State<ChatListScreen> {
       appBar: AppBar(
         title: Text(widget.email),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () async {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Проверка почты...')),
+              );
+              await _fetchNewMessages();
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            onPressed: _showDebugInfo,
+          ),
           IconButton(
             icon: const Icon(Icons.qr_code),
             onPressed: _showMyQR,
@@ -237,6 +300,42 @@ class _ChatListScreenState extends State<ChatListScreen> {
           : _chats.isEmpty
               ? _buildEmptyState()
               : _buildChatList(),
+    );
+  }
+
+  void _showDebugInfo() async {
+    final contacts = await StorageService.getContacts(widget.email);
+    final maxUID = await StorageService.getMaxProcessedUID(widget.email);
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Debug Info'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Email: ${widget.email}'),
+              const SizedBox(height: 8),
+              Text('Контактов: ${contacts.length}'),
+              const SizedBox(height: 8),
+              Text('Последний UID: $maxUID'),
+              const SizedBox(height: 8),
+              Text('Чатов: ${_chats.length}'),
+              const SizedBox(height: 16),
+              const Text('Контакты:', style: TextStyle(fontWeight: FontWeight.bold)),
+              ...contacts.map((c) => Text('- ${c['email']}')),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
     );
   }
 

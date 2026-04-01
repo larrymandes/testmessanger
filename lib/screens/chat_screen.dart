@@ -54,6 +54,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final chatMessages = messages.map((msg) => _createMessage(msg)).toList();
     _chatController.setMessages(chatMessages);
+    
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Message _createMessage(Map<String, dynamic> msg) {
@@ -163,6 +167,15 @@ class _ChatScreenState extends State<ChatScreen> {
         metadata: null,
       );
       _chatController.updateMessage(chatMessage, updatedMessage);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✓ Отправлено'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
     } catch (e) {
       print('Send error: $e');
       
@@ -172,6 +185,16 @@ class _ChatScreenState extends State<ChatScreen> {
         metadata: null,
       );
       _chatController.updateMessage(chatMessage, updatedMessage);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✗ Ошибка отправки: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
     }
   }
 
