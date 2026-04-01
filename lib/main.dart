@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'screens/main_screen.dart';
 import 'screens/account_select_screen.dart';
 import 'services/storage_service.dart';
-import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,7 +15,13 @@ class SecureMessengerApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Secure Messenger',
-      theme: AppTheme.darkTheme,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF2b5278),
+          brightness: Brightness.dark,
+        ),
+        useMaterial3: true,
+      ),
       home: const AccountSelectScreen(),
       debugShowCheckedModeBanner: false,
     );

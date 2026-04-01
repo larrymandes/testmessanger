@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
-import 'main_screen.dart';
-import '../theme/app_theme.dart';
+import 'chat_list_screen.dart';
 
 class AccountSelectScreen extends StatelessWidget {
   const AccountSelectScreen({super.key});
@@ -9,67 +7,69 @@ class AccountSelectScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bgColor,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                CupertinoIcons.lock_shield,
-                size: 80,
-                color: AppTheme.accentTextColor,
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Secure Messenger',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.textColor,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0e1621), Color(0xFF17212b)],
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.lock_outline,
+                  size: 80,
+                  color: Colors.white70,
                 ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'E2EE over Email',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: AppTheme.subtitleTextColor,
+                const SizedBox(height: 24),
+                const Text(
+                  'Secure Messenger',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 48),
-              _buildAccountButton(
-                context,
-                'Аккаунт 1',
-                'makcim.evgenevich@bk.ru',
-                'OOEviOdB7Yeg5Wa762Jt',
-                CupertinoIcons.person,
-              ),
-              const SizedBox(height: 16),
-              _buildAccountButton(
-                context,
-                'Аккаунт 2',
-                'xbox.makcim@bk.ru',
-                'ak2DJdvV02aepi1OYLT5',
-                CupertinoIcons.person_alt,
-              ),
-              const SizedBox(height: 32),
-              CupertinoButton(
-                onPressed: () => _showAddAccountDialog(context),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(CupertinoIcons.add, color: AppTheme.accentTextColor),
-                    SizedBox(width: 8),
-                    Text(
-                      'Добавить аккаунт',
-                      style: TextStyle(color: AppTheme.accentTextColor),
-                    ),
-                  ],
+                const SizedBox(height: 8),
+                const Text(
+                  'E2EE over Email',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white60,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 48),
+                _buildAccountButton(
+                  context,
+                  'Аккаунт 1',
+                  'makcim.evgenevich@bk.ru',
+                  'OOEviOdB7Yeg5Wa762Jt',
+                  Icons.person,
+                ),
+                const SizedBox(height: 16),
+                _buildAccountButton(
+                  context,
+                  'Аккаунт 2',
+                  'xbox.makcim@bk.ru',
+                  'ak2DJdvV02aepi1OYLT5',
+                  Icons.person_outline,
+                ),
+                const SizedBox(height: 32),
+                TextButton.icon(
+                  onPressed: () => _showAddAccountDialog(context),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Добавить аккаунт'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white70,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -83,18 +83,14 @@ class AccountSelectScreen extends StatelessWidget {
     String password,
     IconData icon,
   ) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.sectionBgColor,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: () {
-          Navigator.pushReplacement(
+    return Card(
+      elevation: 4,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
             context,
-            CupertinoPageRoute(
-              builder: (context) => MainScreen(
+            MaterialPageRoute(
+              builder: (context) => ChatListScreen(
                 email: email,
                 password: password,
               ),
@@ -105,7 +101,7 @@ class AccountSelectScreen extends StatelessWidget {
           padding: const EdgeInsets.all(20.0),
           child: Row(
             children: [
-              Icon(icon, size: 40, color: AppTheme.accentTextColor),
+              Icon(icon, size: 40),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -115,26 +111,21 @@ class AccountSelectScreen extends StatelessWidget {
                       name,
                       style: const TextStyle(
                         fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textColor,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       email,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
-                        color: AppTheme.subtitleTextColor,
+                        color: Colors.grey[400],
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(
-                CupertinoIcons.chevron_right,
-                size: 20,
-                color: AppTheme.subtitleTextColor,
-              ),
+              const Icon(Icons.arrow_forward_ios, size: 20),
             ],
           ),
         ),
@@ -143,15 +134,16 @@ class AccountSelectScreen extends StatelessWidget {
   }
 
   void _showAddAccountDialog(BuildContext context) {
-    showCupertinoDialog(
+    // TODO: Диалог добавления нового аккаунта
+    showDialog(
       context: context,
-      builder: (context) => CupertinoAlertDialog(
+      builder: (context) => AlertDialog(
         title: const Text('Добавить аккаунт'),
         content: const Text('Функция в разработке'),
         actions: [
-          CupertinoDialogAction(
-            child: const Text('OK'),
+          TextButton(
             onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
           ),
         ],
       ),

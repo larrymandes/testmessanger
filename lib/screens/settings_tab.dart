@@ -1,20 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import '../services/storage_service.dart';
-import '../services/crypto_service.dart';
 import '../theme/app_theme.dart';
 import 'account_select_screen.dart';
 
 class SettingsTab extends StatefulWidget {
   final String email;
-  final EmailService emailService;
-  final String? myPublicKeyHex;
 
   const SettingsTab({
     super.key,
     required this.email,
-    required this.emailService,
-    this.myPublicKeyHex,
   });
 
   @override
@@ -280,29 +275,29 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
   }
 
   void _showMyQR() {
-    if (widget.myPublicKeyHex == null) return;
+    if (_myPublicKeyHex == null) return;
     
     Navigator.push(
       context,
       CupertinoPageRoute(
         builder: (context) => QRScreen(
           myEmail: widget.email,
-          myPublicKey: widget.myPublicKeyHex!,
+          myPublicKey: _myPublicKeyHex!,
         ),
       ),
     );
   }
 
   void _scanQR() async {
-    if (widget.myPublicKeyHex == null) return;
+    if (_myPublicKeyHex == null) return;
     
     Navigator.push(
       context,
       CupertinoPageRoute(
         builder: (context) => ScanQRScreen(
           myEmail: widget.email,
-          myPublicKeyHex: widget.myPublicKeyHex!,
-          emailService: widget.emailService,
+          myPublicKeyHex: _myPublicKeyHex!,
+          emailService: _emailService,
           onContactAdded: (email, pubKey) async {
             await _loadContacts();
           },
@@ -327,23 +322,9 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
     );
   }
 
-  void _showComingSoon() {
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('В разработке'),
-        content: const Text('Эта функция скоро появится'),
-        actions: [
-          CupertinoDialogAction(
-            child: const Text('OK'),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _loadContacts() async {
-    // Stub для обновления после добавления контакта
+  @override
+  void dispose() {
+    _emailService.disconnect();
+    super.dispose();
   }
 }

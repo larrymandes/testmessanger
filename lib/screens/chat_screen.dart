@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
@@ -9,7 +8,6 @@ import 'dart:math';
 import '../services/email_service.dart';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
-import '../theme/app_theme.dart';
 
 class ChatScreen extends StatefulWidget {
   final String contactEmail;
@@ -207,21 +205,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: AppTheme.headerBgColor,
-        border: null,
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          child: const Icon(CupertinoIcons.back, color: AppTheme.accentTextColor),
-          onPressed: () => Navigator.pop(context),
-        ),
-        middle: Column(
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              widget.contactEmail,
-              style: const TextStyle(color: AppTheme.textColor, fontSize: 17),
-            ),
+            Text(widget.contactEmail),
             FutureBuilder<String>(
               future: CryptoService.getFingerprint(widget.contactPublicKey),
               builder: (context, snapshot) {
@@ -231,7 +220,6 @@ class _ChatScreenState extends State<ChatScreen> {
                   style: const TextStyle(
                     fontSize: 10,
                     fontFamily: 'monospace',
-                    color: AppTheme.subtitleTextColor,
                   ),
                 );
               },
@@ -239,7 +227,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
       ),
-      child: Chat(
+      body: Chat(
         chatController: _chatController,
         currentUserId: widget.myEmail,
         onMessageSend: _handleSendPressed,
@@ -249,7 +237,13 @@ class _ChatScreenState extends State<ChatScreen> {
             name: userId == widget.myEmail ? 'Вы' : widget.contactEmail,
           );
         },
-        theme: AppTheme.chatTheme,
+        theme: ChatTheme.dark().copyWith(
+          colors: ChatTheme.dark().colors.copyWith(
+            primary: const Color(0xFF2b5278),
+            surface: const Color(0xFF0e1621),
+            onSurface: Colors.white,
+          ),
+        ),
       ),
     );
   }

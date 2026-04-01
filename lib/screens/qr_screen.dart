@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -7,7 +6,6 @@ import 'dart:convert';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
 import '../services/email_service.dart';
-import '../theme/app_theme.dart';
 
 class QRScreen extends StatelessWidget {
   final String myEmail;
@@ -23,18 +21,11 @@ class QRScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final qrData = 'chatinvite:$myEmail:$myPublicKey:${DateTime.now().millisecondsSinceEpoch}';
 
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: AppTheme.headerBgColor,
-        border: null,
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          child: const Icon(CupertinoIcons.back, color: AppTheme.accentTextColor),
-          onPressed: () => Navigator.pop(context),
-        ),
-        middle: const Text('Мой QR-код', style: TextStyle(color: AppTheme.textColor)),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Мой QR-код'),
       ),
-      child: Center(
+      body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -57,8 +48,7 @@ class QRScreen extends StatelessWidget {
                 myEmail,
                 style: const TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textColor,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 16),
@@ -69,39 +59,24 @@ class QRScreen extends StatelessWidget {
                   return Text(
                     'Fingerprint:\n${snapshot.data}',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontFamily: 'monospace',
-                      color: AppTheme.subtitleTextColor,
+                      color: Colors.grey[400],
                     ),
                   );
                 },
               ),
               const SizedBox(height: 24),
-              CupertinoButton.filled(
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(CupertinoIcons.doc_on_clipboard, size: 20),
-                    SizedBox(width: 8),
-                    Text('Скопировать'),
-                  ],
-                ),
+              ElevatedButton.icon(
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: qrData));
-                  showCupertinoDialog(
-                    context: context,
-                    builder: (context) => CupertinoAlertDialog(
-                      content: const Text('Скопировано!'),
-                      actions: [
-                        CupertinoDialogAction(
-                          child: const Text('OK'),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ],
-                    ),
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Скопировано!')),
                   );
                 },
+                icon: const Icon(Icons.copy),
+                label: const Text('Скопировать'),
               ),
             ],
           ),
@@ -135,23 +110,17 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: AppTheme.headerBgColor,
-        border: null,
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          child: const Icon(CupertinoIcons.back, color: AppTheme.accentTextColor),
-          onPressed: () => Navigator.pop(context),
-        ),
-        middle: const Text('Сканировать QR', style: TextStyle(color: AppTheme.textColor)),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          child: const Icon(CupertinoIcons.camera_rotate, color: AppTheme.accentTextColor),
-          onPressed: () => _controller.switchCamera(),
-        ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Сканировать QR'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.flip_camera_ios),
+            onPressed: () => _controller.switchCamera(),
+          ),
+        ],
       ),
-      child: Column(
+      body: Column(
         children: [
           Expanded(
             child: MobileScanner(
@@ -171,17 +140,17 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
           ),
           Container(
             padding: const EdgeInsets.all(16),
-            color: AppTheme.bottomBarBgColor,
             child: Column(
               children: [
                 const Text(
                   'Наведите камеру на QR-код контакта',
-                  style: TextStyle(fontSize: 16, color: AppTheme.textColor),
+                  style: TextStyle(fontSize: 16),
                 ),
                 const SizedBox(height: 16),
-                CupertinoButton(
-                  child: const Text('Ввести вручную'),
+                TextButton.icon(
                   onPressed: _showManualInput,
+                  icon: const Icon(Icons.keyboard),
+                  label: const Text('Ввести вручную'),
                 ),
               ],
             ),
@@ -289,25 +258,23 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
   void _showManualInput() {
     final controller = TextEditingController();
     
-    showCupertinoDialog(
+    showDialog(
       context: context,
-      builder: (context) => CupertinoAlertDialog(
+      builder: (context) => AlertDialog(
         title: const Text('Ввести QR данные'),
-        content: Padding(
-          padding: const EdgeInsets.only(top: 12),
-          child: CupertinoTextField(
-            controller: controller,
-            placeholder: 'chatinvite:email:pubkey:token',
-            maxLines: 3,
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: 'chatinvite:email:pubkey:token',
           ),
+          maxLines: 3,
         ),
         actions: [
-          CupertinoDialogAction(
+          TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Отмена'),
           ),
-          CupertinoDialogAction(
-            isDefaultAction: true,
+          TextButton(
             onPressed: () {
               Navigator.pop(context);
               _processQRCode(controller.text);

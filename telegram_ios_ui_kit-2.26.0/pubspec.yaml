@@ -1,0 +1,32 @@
+name: telegram_ios_ui_kit
+description: "Telegram iOS-style Flutter UI Kit with theme tokens, chat widgets, settings cells, and ready-to-run examples."
+version: 2.26.0
+homepage: https://github.com/chenjungao/telegram_ios_ui_kit
+repository: https://github.com/chenjungao/telegram_ios_ui_kit
+issue_tracker: https://github.com/chenjungao/telegram_ios_ui_kit/issues
+topics:
+  - telegram
+  - ui-kit
+  - cupertino
+  - chat
+
+environment:
+  sdk: ^3.10.8
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+  uses-material-design: true
