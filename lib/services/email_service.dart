@@ -24,10 +24,16 @@ class EmailService {
 
   // Подключение к IMAP
   Future<void> connectImap() async {
-    _imapClient = ImapClient(isLogEnabled: false);
-    await _imapClient!.connectToServer(imapServer, imapPort, isSecure: true);
-    await _imapClient!.login(email, password);
-    await _imapClient!.selectInbox();
+    try {
+      _imapClient = ImapClient(isLogEnabled: false);
+      // Порт 993 - это IMAP over SSL (implicit TLS)
+      await _imapClient!.connectToServer(imapServer, imapPort, isSecure: true);
+      await _imapClient!.login(email, password);
+      await _imapClient!.selectInbox();
+    } catch (e) {
+      _imapClient = null;
+      rethrow;
+    }
   }
 
   // IMAP IDLE для мгновенных уведомлений
@@ -56,12 +62,13 @@ class EmailService {
 
   // Получение новых сообщений
   Future<List<MimeMessage>> fetchNewMessages({int lastSeenUid = 0}) async {
-    if (_imapClient == null) await connectImap();
+    try {
+      if (_imapClient == null) await connectImap();
 
-    // Ищем только UNSEEN письма с [chat] в subject
-    final searchResult = await _imapClient!.searchMessages(
-      searchCriteria: 'UNSEEN SUBJECT "[chat]"',
-    );
+      // Ищем только UNSEEN письма с [chat] в subject
+      final searchResult = await _imapClient!.searchMessages(
+        searchCriteria: 'UNSEEN SUBJECT "[chat]"',
+      );
 
     if (searchResult.matchingSequence == null) return [];
 
@@ -83,6 +90,13 @@ class EmailService {
     }
 
     return messages;
+    } catch (e) {
+      // Если ошибка подключения, сбрасываем клиент для переподключения
+      if (e.toString().contains('Connection') || e.toString().contains('Socket')) {
+        _imapClient = null;
+      }
+      rethrow;
+    }
   }
 
   // Отправка сообщения
@@ -90,29 +104,39 @@ class EmailService {
     required String toEmail,
     required String encryptedPayload,
   }) async {
-    _smtpClient ??= SmtpClient('secure_messenger', isLogEnabled: false);
-    
-    if (!_smtpClient!.isLoggedIn) {
-      await _smtpClient!.connectToServer(smtpServer, smtpPort);
-      await _smtpClient!.ehlo();
-      await _smtpClient!.startTls();
+    try {
+      _smtpClient ??= SmtpClient('secure_messenger', isLogEnabled: false);
       
-      // Используем authenticate вместо login
-      if (_smtpClient!.serverInfo.supportsAuth(AuthMechanism.plain)) {
-        await _smtpClient!.authenticate(email, password, AuthMechanism.plain);
-      } else if (_smtpClient!.serverInfo.supportsAuth(AuthMechanism.login)) {
-        await _smtpClient!.authenticate(email, password, AuthMechanism.login);
+      if (!_smtpClient!.isLoggedIn) {
+        // Для порта 587 подключаемся БЕЗ SSL, потом делаем STARTTLS
+        await _smtpClient!.connectToServer(smtpServer, smtpPort, isSecure: false);
+        await _smtpClient!.ehlo();
+        await _smtpClient!.startTls();
+        
+        // Используем authenticate вместо login
+        if (_smtpClient!.serverInfo.supportsAuth(AuthMechanism.plain)) {
+          await _smtpClient!.authenticate(email, password, AuthMechanism.plain);
+        } else if (_smtpClient!.serverInfo.supportsAuth(AuthMechanism.login)) {
+          await _smtpClient!.authenticate(email, password, AuthMechanism.login);
+        }
       }
+
+      final message = MessageBuilder.buildSimpleTextMessage(
+        MailAddress('', email),
+        [MailAddress('', toEmail)],
+        encryptedPayload,
+        subject: '[chat]',
+      );
+
+      await _smtpClient!.sendMessage(message);
+    } catch (e) {
+      // Если ошибка подключения, сбрасываем клиент для переподключения
+      if (e.toString().contains('Connection') || e.toString().contains('Socket') || 
+          e.toString().contains('HandshakeException')) {
+        _smtpClient = null;
+      }
+      rethrow;
     }
-
-    final message = MessageBuilder.buildSimpleTextMessage(
-      MailAddress('', email),
-      [MailAddress('', toEmail)],
-      encryptedPayload,
-      subject: '[chat]',
-    );
-
-    await _smtpClient!.sendMessage(message);
   }
 
   // Закрытие соединений

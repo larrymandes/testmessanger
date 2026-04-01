@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:pointycastle/api.dart' show AsymmetricKeyPair, PublicKey, PrivateKey;
 import '../services/email_service.dart';
@@ -80,13 +81,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       await _fetchNewMessages();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✗ Ошибка подключения: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-          ),
-        );
+        _showErrorWithCopy('Ошибка подключения', e.toString());
       }
     } finally {
       setState(() => _isLoading = false);
@@ -156,12 +151,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     } catch (e) {
       print('Fetch error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Ошибка получения: $e'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        _showErrorWithCopy('Ошибка получения', e.toString());
       }
     }
   }
@@ -211,28 +201,32 @@ class _ChatListScreenState extends State<ChatListScreen> {
     } catch (e) {
       print('Process message error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Ошибка обработки сообщения: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showErrorWithCopy('Ошибка обработки сообщения', e.toString());
       }
     }
   }
 
   Future<void> _handleInvite(Map<String, dynamic> invite, String from) async {
-    if (_chats.containsKey(invite['email'])) return;
+    final contactEmail = invite['email'] as String;
+    final contactPubKey = invite['pubkey'] as String;
     
+    // Проверяем, не добавлен ли уже
+    final existing = await StorageService.getContact(widget.email, contactEmail);
+    if (existing != null) return;
+    
+    // Сохраняем контакт (БЕЗ отправки invite обратно, как в оригинале)
     await StorageService.saveContact(
       accountEmail: widget.email,
-      contactEmail: invite['email'],
-      publicKey: invite['pubkey'],
+      contactEmail: contactEmail,
+      publicKey: contactPubKey,
     );
+    
+    // Перезагружаем список контактов
+    await _loadContacts();
     
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Новый контакт: ${invite['email']}')),
+        SnackBar(content: Text('✓ Новый контакт: $contactEmail')),
       );
     }
   }
@@ -415,9 +409,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
       MaterialPageRoute(
         builder: (context) => ScanQRScreen(
           myEmail: widget.email,
+          myPublicKeyHex: _myPublicKeyHex!,
+          emailService: _emailService,
           onContactAdded: (email, pubKey) async {
-            // Отправляем автоматическое приглашение
-            await _sendInvite(email, pubKey);
             await _loadContacts();
           },
         ),
@@ -425,28 +419,27 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
-  Future<void> _sendInvite(String contactEmail, String contactPubKey) async {
-    try {
-      final inviteMessage = jsonEncode({
-        'type': 'invite',
-        'email': widget.email,
-        'pubkey': _myPublicKeyHex,
-      });
-      
-      final encrypted = await CryptoService.encryptMessage(
-        plaintext: inviteMessage,
-        recipientPubKeyHex: contactPubKey,
-        senderEmail: widget.email,
-        recipientEmail: contactEmail,
-      );
-      
-      await _emailService.sendMessage(
-        toEmail: contactEmail,
-        encryptedPayload: jsonEncode(encrypted),
-      );
-    } catch (e) {
-      print('Send invite error: $e');
-    }
+  void _showErrorWithCopy(String title, String error) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('✗ $title: $error'),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 10),
+        action: SnackBarAction(
+          label: 'Копировать',
+          textColor: Colors.white,
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: '$title: $error'));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Ошибка скопирована'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 
   @override

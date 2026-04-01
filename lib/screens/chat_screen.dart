@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:pointycastle/api.dart' show AsymmetricKeyPair, PublicKey, PrivateKey;
@@ -191,7 +192,20 @@ class _ChatScreenState extends State<ChatScreen> {
           SnackBar(
             content: Text('✗ Ошибка отправки: $e'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
+            duration: const Duration(seconds: 10),
+            action: SnackBarAction(
+              label: 'Копировать',
+              textColor: Colors.white,
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: 'Ошибка отправки: $e'));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Ошибка скопирована'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+            ),
           ),
         );
       }

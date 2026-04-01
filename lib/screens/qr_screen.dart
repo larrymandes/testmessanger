@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'dart:convert';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
+import '../services/email_service.dart';
 
 class QRScreen extends StatelessWidget {
   final String myEmail;
@@ -86,11 +88,15 @@ class QRScreen extends StatelessWidget {
 
 class ScanQRScreen extends StatefulWidget {
   final String myEmail;
+  final String myPublicKeyHex;
+  final EmailService emailService;
   final Function(String contactEmail, String publicKey) onContactAdded;
 
   const ScanQRScreen({
     super.key,
     required this.myEmail,
+    required this.myPublicKeyHex,
+    required this.emailService,
     required this.onContactAdded,
   });
 
@@ -171,12 +177,63 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
         throw Exception('Нельзя добавить самого себя');
       }
 
+      // Проверяем, не добавлен ли уже
+      final existing = await StorageService.getContact(widget.myEmail, contactEmail);
+      if (existing != null) {
+        throw Exception('Контакт уже добавлен');
+      }
+
       // Сохраняем контакт
       await StorageService.saveContact(
         accountEmail: widget.myEmail,
         contactEmail: contactEmail,
         publicKey: publicKey,
       );
+
+      // Отправляем invite обратно для взаимного добавления
+      try {
+        final inviteMessage = jsonEncode({
+          'type': 'invite',
+          'email': widget.myEmail,
+          'pubkey': widget.myPublicKeyHex,
+        });
+        
+        final encrypted = await CryptoService.encryptMessage(
+          plaintext: inviteMessage,
+          recipientPubKeyHex: publicKey,
+          senderEmail: widget.myEmail,
+          recipientEmail: contactEmail,
+        );
+        
+        await widget.emailService.sendMessage(
+          toEmail: contactEmail,
+          encryptedPayload: jsonEncode(encrypted),
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('✓ Контакт добавлен: $contactEmail')),
+          );
+        }
+      } catch (e) {
+        // Контакт сохранён, но invite не отправлен
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Контакт сохранён, но приглашение не отправлено: $e'),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'Копировать',
+                textColor: Colors.white,
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: 'Ошибка отправки invite: $e'));
+                },
+              ),
+            ),
+          );
+        }
+      }
 
       if (mounted) {
         // Закрываем экран сканирования и возвращаемся в список чатов
@@ -186,7 +243,18 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка: $e')),
+          SnackBar(
+            content: Text('Ошибка: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Копировать',
+              textColor: Colors.white,
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: 'Ошибка добавления контакта: $e'));
+              },
+            ),
+          ),
         );
         setState(() => _isProcessing = false);
       }
