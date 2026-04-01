@@ -294,19 +294,28 @@ class EmailService {
     SmtpClient? client;
     
     try {
-      // Новый клиент для каждой отправки (решает "StreamSink is bound")
-      client = SmtpClient('secure_messenger', isLogEnabled: false);
+      LoggerService.log('SMTP: Creating new client for $toEmail');
+      
+      // ВАЖНО: Создаём НОВЫЙ клиент для КАЖДОЙ отправки
+      client = SmtpClient('secure_messenger_${DateTime.now().millisecondsSinceEpoch}', isLogEnabled: false);
       
       LoggerService.log('SMTP: Connecting to $smtpServer:$smtpPort');
       
       await client.connectToServer(smtpServer, smtpPort, isSecure: false);
+      
+      LoggerService.log('SMTP: Connected, sending EHLO');
       await client.ehlo();
+      
+      LoggerService.log('SMTP: Starting TLS');
       await client.startTls();
       
+      LoggerService.log('SMTP: Authenticating');
       if (client.serverInfo.supportsAuth(AuthMechanism.plain)) {
         await client.authenticate(email, password, AuthMechanism.plain);
       } else if (client.serverInfo.supportsAuth(AuthMechanism.login)) {
         await client.authenticate(email, password, AuthMechanism.login);
+      } else {
+        throw Exception('No supported auth mechanism');
       }
       
       LoggerService.log('SMTP: Authenticated');
@@ -335,10 +344,11 @@ class EmailService {
 
       final message = builder.buildMimeMessage();
 
-      LoggerService.log('Sending message to $toEmail...');
+      LoggerService.log('SMTP: Sending message to $toEmail...');
       await client.sendMessage(message);
-      LoggerService.log('Message was SMTP-sent to $toEmail.');
+      LoggerService.log('SMTP: Message sent successfully');
       
+      LoggerService.log('SMTP: Closing connection');
       await client.quit();
       
       // Возвращаем Message-ID для сохранения в БД
@@ -348,10 +358,14 @@ class EmailService {
       LoggerService.log('SMTP error: $e');
       rethrow;
     } finally {
-      try {
-        await client?.quit();
-      } catch (e) {
-        // Игнорируем
+      // Гарантируем закрытие соединения
+      if (client != null) {
+        try {
+          await client.quit();
+          LoggerService.log('SMTP: Connection closed in finally');
+        } catch (e) {
+          LoggerService.log('SMTP: Error closing connection: $e');
+        }
       }
     }
   }

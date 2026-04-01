@@ -188,17 +188,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
         }
       }
       
-      // Пропускаем свои письма (дополнительная защита)
-      if (from == widget.email) {
-        LoggerService.log('Own message, skipping');
-        await StorageService.addProcessedUID(widget.email, uid);
-        if (messageId.isNotEmpty) {
-          await StorageService.addProcessedMessageId(widget.email, messageId);
-        }
-        await _emailService.markMessageAsSeen(uid);
-        return;
-      }
-      
       // Проверяем не обработано ли по UID
       if (await StorageService.isUIDProcessed(widget.email, uid)) {
         LoggerService.log('UID=$uid already processed');
