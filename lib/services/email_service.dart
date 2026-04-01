@@ -13,6 +13,7 @@ class EmailService {
   SmtpClient? _smtpClient;
   StreamController<void>? _newMessageController;
   bool _isIdleActive = false;
+  bool _isFetching = false;
 
   EmailService({
     required this.email,
@@ -119,7 +120,26 @@ class EmailService {
 
   // Получение новых сообщений
   Future<List<MimeMessage>> fetchNewMessages({int lastSeenUid = 0}) async {
+    if (_isFetching) {
+      print('Already fetching, skipping');
+      return [];
+    }
+    
+    _isFetching = true;
+    
     try {
+      // Останавливаем IDLE если активен
+      if (_isIdleActive && _imapClient != null) {
+        try {
+          _isIdleActive = false;
+          await _imapClient!.idleDone();
+          print('IDLE stopped for fetch');
+          await Future.delayed(const Duration(milliseconds: 100));
+        } catch (e) {
+          print('idleDone error: $e');
+        }
+      }
+      
       if (_imapClient == null) await connectImap();
 
       // Ищем только UNSEEN письма с [chat] в subject
@@ -127,32 +147,48 @@ class EmailService {
         searchCriteria: 'UNSEEN SUBJECT "[chat]"',
       );
 
-    if (searchResult.matchingSequence == null) return [];
-
-    final messages = <MimeMessage>[];
-    for (final uid in searchResult.matchingSequence!.toList()) {
-      if (uid <= lastSeenUid) continue;
-
-      final fetchResult = await _imapClient!.fetchMessage(uid, '(RFC822)');
-      if (fetchResult.messages.isNotEmpty) {
-        messages.add(fetchResult.messages.first);
-        
-        // Помечаем как прочитанное
-        await _imapClient!.store(
-          MessageSequence.fromId(uid),
-          [r'\Seen'],
-          action: StoreAction.add,
-        );
+      if (searchResult.matchingSequence == null) {
+        return [];
       }
-    }
 
-    return messages;
+      final messages = <MimeMessage>[];
+      for (final uid in searchResult.matchingSequence!.toList()) {
+        if (uid <= lastSeenUid) continue;
+
+        final fetchResult = await _imapClient!.fetchMessage(uid, '(RFC822)');
+        if (fetchResult.messages.isNotEmpty) {
+          messages.add(fetchResult.messages.first);
+          
+          // Помечаем как прочитанное
+          await _imapClient!.store(
+            MessageSequence.fromId(uid),
+            [r'\Seen'],
+            action: StoreAction.add,
+          );
+        }
+      }
+
+      return messages;
     } catch (e) {
       // Если ошибка подключения, сбрасываем клиент для переподключения
       if (e.toString().contains('Connection') || e.toString().contains('Socket')) {
         _imapClient = null;
+        _isIdleActive = false;
       }
       rethrow;
+    } finally {
+      _isFetching = false;
+      
+      // Перезапускаем IDLE после fetch
+      if (_imapClient != null && !_isIdleActive && _newMessageController != null && !_newMessageController!.isClosed) {
+        try {
+          await _imapClient!.idleStart();
+          _isIdleActive = true;
+          print('IDLE restarted after fetch');
+        } catch (e) {
+          print('Failed to restart IDLE: $e');
+        }
+      }
     }
   }
 
@@ -162,13 +198,20 @@ class EmailService {
     required String encryptedPayload,
   }) async {
     try {
-      _smtpClient ??= SmtpClient('secure_messenger', isLogEnabled: false);
+      _smtpClient ??= SmtpClient('secure_messenger', isLogEnabled: true);
       
       if (!_smtpClient!.isLoggedIn) {
+        print('SMTP: Connecting to $smtpServer:$smtpPort');
+        
         // Для порта 587 подключаемся БЕЗ SSL, потом делаем STARTTLS
         await _smtpClient!.connectToServer(smtpServer, smtpPort, isSecure: false);
+        print('SMTP: Connected, sending EHLO');
+        
         await _smtpClient!.ehlo();
+        print('SMTP: EHLO done, starting TLS');
+        
         await _smtpClient!.startTls();
+        print('SMTP: TLS started, authenticating');
         
         // Используем authenticate вместо login
         if (_smtpClient!.serverInfo.supportsAuth(AuthMechanism.plain)) {
@@ -176,6 +219,8 @@ class EmailService {
         } else if (_smtpClient!.serverInfo.supportsAuth(AuthMechanism.login)) {
           await _smtpClient!.authenticate(email, password, AuthMechanism.login);
         }
+        
+        print('SMTP: Authenticated');
       }
 
       final message = MessageBuilder.buildSimpleTextMessage(
@@ -185,11 +230,14 @@ class EmailService {
         subject: '[chat]',
       );
 
+      print('SMTP: Sending message to $toEmail');
       await _smtpClient!.sendMessage(message);
+      print('SMTP: Message sent successfully');
     } catch (e) {
+      print('SMTP error: $e');
       // Если ошибка подключения, сбрасываем клиент для переподключения
       if (e.toString().contains('Connection') || e.toString().contains('Socket') || 
-          e.toString().contains('HandshakeException')) {
+          e.toString().contains('HandshakeException') || e.toString().contains('WRONG_VERSION')) {
         _smtpClient = null;
       }
       rethrow;
