@@ -42,6 +42,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Future<void> _initialize() async {
+    setState(() => _isLoading = true);
+    
     try {
       // Загружаем или генерируем ключи
       await _loadOrGenerateKeys();
@@ -49,27 +51,38 @@ class _ChatListScreenState extends State<ChatListScreen> {
       // Загружаем контакты
       await _loadContacts();
       
-      // Подключаемся к IMAP
+      setState(() => _isLoading = false);
+      
+      // Подключаемся к IMAP асинхронно (не блокируем UI)
       setState(() => _connectionStatus = 'Подключение...');
       
-      await _emailService.connectImap();
-      
-      setState(() => _connectionStatus = 'Подключено');
-      
-      // Слушаем новые сообщения через IDLE
-      _emailService.listenForNewMessages().listen((_) {
+      _emailService.connectImap().then((_) {
+        if (mounted) {
+          setState(() => _connectionStatus = 'Подключено');
+        }
+        
+        // Запускаем IDLE listener (не ждём его)
+        _emailService.listenForNewMessages().listen((_) {
+          _fetchNewMessages();
+        });
+        
+        // Получаем новые сообщения
         _fetchNewMessages();
+      }).catchError((e) {
+        if (mounted) {
+          setState(() => _connectionStatus = 'Ошибка');
+          _showErrorWithCopy('Ошибка подключения', e.toString());
+        }
       });
       
-      // Получаем новые сообщения
-      await _fetchNewMessages();
     } catch (e) {
-      setState(() => _connectionStatus = 'Ошибка');
+      setState(() {
+        _connectionStatus = 'Ошибка';
+        _isLoading = false;
+      });
       if (mounted) {
-        _showErrorWithCopy('Ошибка подключения', e.toString());
+        _showErrorWithCopy('Ошибка инициализации', e.toString());
       }
-    } finally {
-      setState(() => _isLoading = false);
     }
   }
 

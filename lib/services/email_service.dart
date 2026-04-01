@@ -44,72 +44,77 @@ class EmailService {
     }
     
     _newMessageController = StreamController<void>.broadcast();
+    
+    // Запускаем IDLE loop в фоне (не блокируем)
     _startIdleLoop();
     
     return _newMessageController!.stream;
   }
 
-  Future<void> _startIdleLoop() async {
-    if (_isIdleActive) return;
-    _isIdleActive = true;
+  void _startIdleLoop() {
+    // Запускаем в отдельном Future чтобы не блокировать
+    Future(() async {
+      if (_isIdleActive) return;
+      _isIdleActive = true;
 
-    while (_isIdleActive && _newMessageController != null && !_newMessageController!.isClosed) {
-      try {
-        if (_imapClient == null) {
-          await connectImap();
-        }
-
-        // Проверяем поддержку IDLE
-        if (!_imapClient!.serverInfo.supportsIdle) {
-          print('ERROR: Server does not support IDLE');
-          throw Exception('IMAP IDLE not supported by server');
-        }
-
-        // Запускаем IDLE
-        await _imapClient!.idleStart();
-        print('IDLE started, waiting for events...');
-        
-        // Ждём 28 минут (чтобы успеть перезапустить до таймаута сервера)
-        bool gotEvent = false;
-        final startTime = DateTime.now();
-        
-        // Слушаем события через eventBus
-        StreamSubscription<ImapEvent>? subscription;
-        if (_imapClient!.eventBus != null) {
-          subscription = _imapClient!.eventBus!.on<ImapEvent>().listen((event) {
-            if (event is ImapExpungeEvent || event is ImapFetchEvent || event is ImapVanishedEvent) {
-              gotEvent = true;
-              print('IDLE: got event ${event.runtimeType}');
-            }
-          });
-        }
-        
-        // Ждём события или 28 минут
-        while (_isIdleActive && DateTime.now().difference(startTime).inMinutes < 28) {
-          await Future.delayed(const Duration(seconds: 1));
-          
-          if (gotEvent) {
-            print('IDLE: new message detected');
-            if (_newMessageController != null && !_newMessageController!.isClosed) {
-              _newMessageController!.add(null);
-            }
-            break;
+      while (_isIdleActive && _newMessageController != null && !_newMessageController!.isClosed) {
+        try {
+          if (_imapClient == null) {
+            await connectImap();
           }
+
+          // Проверяем поддержку IDLE
+          if (!_imapClient!.serverInfo.supportsIdle) {
+            print('ERROR: Server does not support IDLE');
+            throw Exception('IMAP IDLE not supported by server');
+          }
+
+          // Запускаем IDLE
+          await _imapClient!.idleStart();
+          print('IDLE started, waiting for events...');
+          
+          // Ждём 28 минут (чтобы успеть перезапустить до таймаута сервера)
+          bool gotEvent = false;
+          final startTime = DateTime.now();
+          
+          // Слушаем события через eventBus
+          StreamSubscription<ImapEvent>? subscription;
+          if (_imapClient!.eventBus != null) {
+            subscription = _imapClient!.eventBus!.on<ImapEvent>().listen((event) {
+              if (event is ImapExpungeEvent || event is ImapFetchEvent || event is ImapVanishedEvent) {
+                gotEvent = true;
+                print('IDLE: got event ${event.runtimeType}');
+              }
+            });
+          }
+          
+          // Ждём события или 28 минут
+          while (_isIdleActive && DateTime.now().difference(startTime).inMinutes < 28) {
+            await Future.delayed(const Duration(seconds: 1));
+            
+            if (gotEvent) {
+              print('IDLE: new message detected');
+              if (_newMessageController != null && !_newMessageController!.isClosed) {
+                _newMessageController!.add(null);
+              }
+              break;
+            }
+          }
+          
+          // Останавливаем IDLE
+          await subscription?.cancel();
+          await _imapClient!.idleDone();
+          print('IDLE stopped, restarting...');
+          
+        } catch (e) {
+          print('IDLE error: $e');
+          _imapClient = null;
+          
+          // Ждём перед повторной попыткой
+          await Future.delayed(const Duration(seconds: 10));
         }
-        
-        // Останавливаем IDLE
-        await subscription?.cancel();
-        await _imapClient!.idleDone();
-        print('IDLE stopped, restarting...');
-        
-      } catch (e) {
-        print('IDLE error: $e');
-        _imapClient = null;
-        
-        // Ждём перед повторной попыткой
-        await Future.delayed(const Duration(seconds: 10));
       }
-    }
+    });
   }
 
   // Получение новых сообщений
