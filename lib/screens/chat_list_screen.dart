@@ -161,8 +161,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
       final body = mimeMessage.decodeTextPlainPart() ?? '';
       final uid = mimeMessage.uid ?? 0;
       
+      // Игнорируем письма без UID (старые или битые)
+      if (uid == 0) {
+        LoggerService.log('Skipping message with UID 0 from $from');
+        return;
+      }
+      
       LoggerService.log('Processing message from $from, UID: $uid');
-      LoggerService.log('Body length: ${body.length}');
       
       // Проверяем не обработано ли уже
       if (await StorageService.isUIDProcessed(widget.email, uid)) {
@@ -174,9 +179,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
       Map<String, dynamic> encrypted;
       try {
         encrypted = jsonDecode(body) as Map<String, dynamic>;
-        LoggerService.log('Encrypted payload keys: ${encrypted.keys.join(", ")}');
+        LoggerService.log('Encrypted keys: ${encrypted.keys.join(", ")}');
       } catch (e) {
-        LoggerService.log('Failed to parse JSON: $e');
+        LoggerService.log('Not JSON, skipping (old format?)');
         await StorageService.addProcessedUID(widget.email, uid);
         return;
       }
@@ -188,14 +193,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
           encrypted: encrypted.map((k, v) => MapEntry(k, v.toString())),
           myKeyPair: _myKeyPair!,
         );
-        LoggerService.log('Decrypted: ${plaintext.substring(0, plaintext.length > 50 ? 50 : plaintext.length)}...');
+        final preview = plaintext.length > 50 ? plaintext.substring(0, 50) : plaintext;
+        LoggerService.log('Decrypted: $preview...');
       } catch (e) {
-        LoggerService.log('Decryption failed: $e');
+        LoggerService.log('Decryption failed (wrong key?), skipping');
         // Помечаем как обработанное чтобы не пытаться снова
         await StorageService.addProcessedUID(widget.email, uid);
-        if (mounted) {
-          _showErrorWithCopy('Не удалось расшифровать сообщение от $from', e.toString());
-        }
         return;
       }
       
@@ -225,9 +228,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
       await StorageService.addProcessedUID(widget.email, uid);
     } catch (e) {
       LoggerService.log('Process message error: $e');
-      if (mounted) {
-        _showErrorWithCopy('Ошибка обработки сообщения', e.toString());
-      }
     }
   }
 
@@ -281,6 +281,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
       uid: message['uid'],
     );
     LoggerService.log('Text message saved from $from');
+    
+    // Перезагружаем контакты чтобы обновить UI
+    await _loadContacts();
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
