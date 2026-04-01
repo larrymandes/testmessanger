@@ -179,11 +179,9 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
       );
 
       if (mounted) {
+        // Закрываем экран сканирования и возвращаемся в список чатов
         Navigator.pop(context);
-        widget.onContactAdded(contactEmail, publicKey);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Контакт $contactEmail добавлен!')),
-        );
+        await widget.onContactAdded(contactEmail, publicKey);
       }
     } catch (e) {
       if (mounted) {

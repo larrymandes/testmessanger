@@ -41,7 +41,7 @@ app.*.map.json
 # Windows
 windows/flutter/ephemeral/
 
-# Secrets
+# Secrets - keep passwords safe
 *.env
 *.env.*
 !.env.example

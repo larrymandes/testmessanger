@@ -9,11 +9,12 @@ dependencies:
   flutter:
     sdk: flutter
   
-  # UI
-  flutter_chat_ui: ^1.6.15
+  # UI - Flyer Chat от flyerhq
+  flutter_chat_core: ^2.0.0
+  flutter_chat_ui: ^2.0.0
   
   # Email protocols
-  enough_mail: ^2.1.8  # IMAP/SMTP
+  enough_mail: ^2.1.7
   
   # Crypto
   cryptography: ^2.7.0
@@ -21,7 +22,9 @@ dependencies:
   
   # Storage
   sqflite: ^2.3.3
+  sqflite_common_ffi: ^2.3.3  # Для Windows/Linux/macOS
   path_provider: ^2.1.3
+  path: ^1.9.0
   shared_preferences: ^2.2.3
   
   # QR codes

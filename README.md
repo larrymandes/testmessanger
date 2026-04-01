@@ -7,44 +7,22 @@
 - ✅ E2EE шифрование (ECDH P-256 + AES-256-GCM)
 - ✅ Без собственных серверов - только IMAP/SMTP
 - ✅ IMAP IDLE для мгновенных уведомлений
-- ✅ QR-коды для обмена ключами
-- ✅ Современный UI (Flyer Chat)
-- ✅ Кросс-платформа (Android, iOS, Windows, Linux, macOS)
+- ✅ QR-коды для обмена ключами (MITM защита)
+- ✅ Read receipts (статусы прочитано/не прочитано)
+- ✅ Современный UI в стиле Telegram
+- ✅ Кросс-платформа (Android, iOS, Windows)
+- ✅ Forward secrecy через ephemeral ключи
+- ✅ Автоматическая сборка через GitHub Actions
 
 ## Установка
 
-1. Установите Flutter: https://flutter.dev/docs/get-started/install
+Самый простой способ - использовать GitHub Actions для автоматической сборки:
 
-2. Клонируйте репозиторий и установите зависимости:
-```bash
-cd flutter_app
-flutter pub get
-```
+1. Загрузи код на GitHub: запусти `UPLOAD_TO_GITHUB.bat`
+2. Иди на https://github.com/larrymandes/testmessanger/actions
+3. Скачай готовые приложения из Artifacts
 
-3. Запустите приложение:
-```bash
-flutter run
-```
-
-## Сборка для Windows
-
-```bash
-flutter build windows --release
-```
-
-Готовый .exe будет в `build/windows/x64/runner/Release/`
-
-## Сборка для Android
-
-```bash
-flutter build apk --release
-```
-
-## Сборка для iOS
-
-```bash
-flutter build ios --release
-```
+Для локальной разработки смотри [SETUP.md](SETUP.md)
 
 ## Архитектура
 
@@ -63,13 +41,11 @@ lib/
 
 ## TODO
 
-- [ ] Реализовать полную интеграцию криптографии
-- [ ] QR-коды для обмена ключами
-- [ ] Локальное хранилище (SQLite)
-- [ ] Read receipts
-- [ ] Группы (рассылка)
+- [ ] Группы (рассылка на несколько контактов)
 - [ ] Файлы и изображения
 - [ ] Push уведомления (Android/iOS)
+- [ ] Голосовые сообщения
+- [ ] Поиск по сообщениям
 
 ## Безопасность
 

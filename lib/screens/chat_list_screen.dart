@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../services/email_service.dart';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
@@ -36,6 +37,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
       password: widget.password,
     );
     _initialize();
+    
+    // Периодическая проверка на случай если IDLE не сработает
+    Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) _fetchNewMessages();
+    });
   }
 
   Future<void> _initialize() async {
@@ -192,6 +198,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final messageUID = receipt['message_uid'];
     if (messageUID != null) {
       await StorageService.updateMessageStatus(widget.email, messageUID, 'read');
+      // Обновляем UI
+      await _loadContacts();
     }
   }
 

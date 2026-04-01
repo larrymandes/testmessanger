@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_chat_core/flutter_chat_core.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
-import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:cryptography/cryptography.dart';
 import 'dart:convert';
+import 'dart:math';
 import '../services/email_service.dart';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
@@ -30,15 +31,19 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final List<types.Message> _messages = [];
-  late final types.User _user;
+  final _chatController = InMemoryChatController();
 
   @override
   void initState() {
     super.initState();
-    _user = types.User(id: widget.myEmail);
     _loadMessages();
     _sendReadReceipts();
+    
+    // Слушаем новые сообщения
+    widget.emailService.listenForNewMessages().listen((_) {
+      _loadMessages();
+      _sendReadReceipts();
+    });
   }
 
   Future<void> _loadMessages() async {
@@ -47,39 +52,22 @@ class _ChatScreenState extends State<ChatScreen> {
       widget.contactEmail,
     );
 
-    setState(() {
-      _messages.clear();
-      for (final msg in messages) {
-        _messages.add(_createMessage(msg));
-      }
-    });
+    final chatMessages = messages.map((msg) => _createMessage(msg)).toList();
+    _chatController.setMessages(chatMessages);
   }
 
-  types.Message _createMessage(Map<String, dynamic> msg) {
-    return types.TextMessage(
-      author: msg['sent']
-          ? _user
-          : types.User(id: widget.contactEmail),
-      createdAt: msg['timestamp'],
+  Message _createMessage(Map<String, dynamic> msg) {
+    final timestamp = DateTime.fromMillisecondsSinceEpoch(msg['timestamp']);
+    
+    return TextMessage(
       id: msg['uid'] ?? msg['id'].toString(),
+      authorId: msg['sent'] ? widget.myEmail : widget.contactEmail,
+      createdAt: timestamp,
       text: msg['text'],
-      status: msg['sent'] ? _parseStatus(msg['status']) : null,
+      sentAt: msg['status'] == 'sent' || msg['status'] == 'read' ? timestamp : null,
+      seenAt: msg['status'] == 'read' ? timestamp : null,
+      metadata: msg['status'] == 'sending' ? {'sending': true} : null,
     );
-  }
-
-  types.Status? _parseStatus(String? status) {
-    switch (status) {
-      case 'sending':
-        return types.Status.sending;
-      case 'sent':
-        return types.Status.sent;
-      case 'read':
-        return types.Status.seen;
-      case 'error':
-        return types.Status.error;
-      default:
-        return types.Status.sent;
-    }
   }
 
   Future<void> _sendReadReceipts() async {
@@ -122,25 +110,25 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  void _handleSendPressed(types.PartialText message) async {
+  void _handleSendPressed(String text) async {
     final messageUID = '${DateTime.now().millisecondsSinceEpoch}_${DateTime.now().microsecond}';
+    final now = DateTime.now().toUtc();
     
-    final textMessage = types.TextMessage(
-      author: _user,
-      createdAt: DateTime.now().millisecondsSinceEpoch,
+    // Добавляем сообщение с статусом "отправляется"
+    final chatMessage = TextMessage(
       id: messageUID,
-      text: message.text,
-      status: types.Status.sending,
+      authorId: widget.myEmail,
+      createdAt: now,
+      text: text,
+      metadata: {'sending': true},
     );
 
-    setState(() {
-      _messages.insert(0, textMessage);
-    });
+    _chatController.insertMessage(chatMessage);
 
     try {
       // Создаём сообщение с UID
       final messageWithUID = jsonEncode({
-        'text': message.text,
+        'text': text,
         'uid': messageUID,
       });
 
@@ -162,30 +150,32 @@ class _ChatScreenState extends State<ChatScreen> {
       await StorageService.saveMessage(
         accountEmail: widget.myEmail,
         contactEmail: widget.contactEmail,
-        text: message.text,
+        text: text,
         sent: true,
-        timestamp: DateTime.now().millisecondsSinceEpoch,
+        timestamp: now.millisecondsSinceEpoch,
         status: 'sent',
         uid: messageUID,
       );
 
       // Обновляем статус на "отправлено"
-      final index = _messages.indexWhere((m) => m.id == textMessage.id);
-      if (index != -1) {
-        setState(() {
-          _messages[index] = textMessage.copyWith(status: types.Status.sent);
-        });
-      }
+      _chatController.updateMessage(
+        messageUID,
+        chatMessage.copyWith(
+          sentAt: now,
+          metadata: null,
+        ),
+      );
     } catch (e) {
       print('Send error: $e');
       
       // Обновляем статус на "ошибка"
-      final index = _messages.indexWhere((m) => m.id == textMessage.id);
-      if (index != -1) {
-        setState(() {
-          _messages[index] = textMessage.copyWith(status: types.Status.error);
-        });
-      }
+      _chatController.updateMessage(
+        messageUID,
+        chatMessage.copyWith(
+          failedAt: now,
+          metadata: null,
+        ),
+      );
     }
   }
 
@@ -214,19 +204,29 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ),
       body: Chat(
-        messages: _messages,
-        onSendPressed: _handleSendPressed,
-        user: _user,
-        theme: DefaultChatTheme(
-          backgroundColor: const Color(0xFF0e1621),
-          primaryColor: const Color(0xFF2b5278),
-          secondaryColor: const Color(0xFF242f3d),
-          inputBackgroundColor: const Color(0xFF242f3d),
-          inputTextColor: Colors.white,
-          receivedMessageBodyTextStyle: const TextStyle(color: Colors.white),
-          sentMessageBodyTextStyle: const TextStyle(color: Colors.white),
+        chatController: _chatController,
+        currentUserId: widget.myEmail,
+        onMessageSend: _handleSendPressed,
+        resolveUser: (userId) async {
+          return User(
+            id: userId,
+            name: userId == widget.myEmail ? 'Вы' : widget.contactEmail,
+          );
+        },
+        theme: ChatTheme.dark().copyWith(
+          colors: ChatTheme.dark().colors.copyWith(
+            primary: const Color(0xFF2b5278),
+            surface: const Color(0xFF0e1621),
+            onSurface: Colors.white,
+          ),
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _chatController.dispose();
+    super.dispose();
   }
 }

@@ -48,6 +48,7 @@ class AccountSelectScreen extends StatelessWidget {
                   context,
                   'Аккаунт 1',
                   'makcim.evgenevich@bk.ru',
+                  'OOEviOdB7Yeg5Wa762Jt',
                   Icons.person,
                 ),
                 const SizedBox(height: 16),
@@ -55,6 +56,7 @@ class AccountSelectScreen extends StatelessWidget {
                   context,
                   'Аккаунт 2',
                   'xbox.makcim@bk.ru',
+                  'ak2DJdvV02aepi1OYLT5',
                   Icons.person_outline,
                 ),
                 const SizedBox(height: 32),
@@ -78,6 +80,7 @@ class AccountSelectScreen extends StatelessWidget {
     BuildContext context,
     String name,
     String email,
+    String password,
     IconData icon,
   ) {
     return Card(
@@ -89,7 +92,7 @@ class AccountSelectScreen extends StatelessWidget {
             MaterialPageRoute(
               builder: (context) => ChatListScreen(
                 email: email,
-                password: 'YOUR_PASSWORD', // TODO: Хранить в secure storage
+                password: password,
               ),
             ),
           );

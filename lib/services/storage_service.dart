@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -9,6 +11,12 @@ class StorageService {
 
   // Инициализация
   static Future<void> init() async {
+    // Для desktop платформ используем FFI версию
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      sqfliteFfiInit();
+      databaseFactory = databaseFactoryFfi;
+    }
+    
     _prefs = await SharedPreferences.getInstance();
     _database = await _initDatabase();
   }
