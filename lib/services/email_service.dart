@@ -70,11 +70,11 @@ class EmailService {
             throw Exception('IMAP IDLE not supported by server');
           }
 
-          // Запускаем IDLE
+          print('IDLE: Starting...');
           await _imapClient!.idleStart();
-          print('IDLE started, waiting for events...');
+          print('IDLE: Active, waiting for events');
           
-          // Ждём 28 минут (чтобы успеть перезапустить до таймаута сервера)
+          // Ждём события или 28 минут
           bool gotEvent = false;
           final startTime = DateTime.now();
           
@@ -82,39 +82,55 @@ class EmailService {
           StreamSubscription<ImapEvent>? subscription;
           if (_imapClient!.eventBus != null) {
             subscription = _imapClient!.eventBus!.on<ImapEvent>().listen((event) {
+              print('IDLE: Event received: ${event.runtimeType}');
               if (event is ImapExpungeEvent || event is ImapFetchEvent || event is ImapVanishedEvent) {
                 gotEvent = true;
-                print('IDLE: got event ${event.runtimeType}');
               }
             });
+          } else {
+            print('IDLE: WARNING - eventBus is null, events will not be detected');
           }
           
           // Ждём события или 28 минут
-          while (_isIdleActive && DateTime.now().difference(startTime).inMinutes < 28) {
-            await Future.delayed(const Duration(seconds: 1));
-            
-            if (gotEvent) {
-              print('IDLE: new message detected');
-              if (_newMessageController != null && !_newMessageController!.isClosed) {
-                _newMessageController!.add(null);
-              }
-              break;
-            }
+          while (_isIdleActive && DateTime.now().difference(startTime).inMinutes < 28 && !gotEvent) {
+            await Future.delayed(const Duration(milliseconds: 500));
           }
           
           // Останавливаем IDLE
           await subscription?.cancel();
-          await _imapClient!.idleDone();
-          print('IDLE stopped, restarting...');
+          
+          if (_imapClient != null) {
+            try {
+              await _imapClient!.idleDone();
+              print('IDLE: Stopped');
+            } catch (e) {
+              print('IDLE: idleDone error: $e');
+            }
+          }
+          
+          // Если получили событие, уведомляем
+          if (gotEvent) {
+            print('IDLE: Notifying about new message');
+            if (_newMessageController != null && !_newMessageController!.isClosed) {
+              _newMessageController!.add(null);
+            }
+            // Небольшая пауза перед перезапуском
+            await Future.delayed(const Duration(milliseconds: 500));
+          } else {
+            print('IDLE: Timeout reached, restarting');
+          }
           
         } catch (e) {
           print('IDLE error: $e');
           _imapClient = null;
+          _isIdleActive = false;
           
           // Ждём перед повторной попыткой
           await Future.delayed(const Duration(seconds: 10));
         }
       }
+      
+      print('IDLE: Loop ended');
     });
   }
 

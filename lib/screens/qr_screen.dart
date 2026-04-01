@@ -217,11 +217,13 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
               content: Text('Приглашение не отправлено: $e'),
               backgroundColor: Colors.orange,
               duration: const Duration(seconds: 5),
+              behavior: SnackBarBehavior.floating,
               action: SnackBarAction(
                 label: 'Копировать',
                 textColor: Colors.white,
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: 'Ошибка отправки invite: $e'));
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
                 },
               ),
             ),
@@ -241,11 +243,13 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
             content: Text('Ошибка: $e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 5),
+            behavior: SnackBarBehavior.floating,
             action: SnackBarAction(
               label: 'Копировать',
               textColor: Colors.white,
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: 'Ошибка добавления контакта: $e'));
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
               },
             ),
           ),

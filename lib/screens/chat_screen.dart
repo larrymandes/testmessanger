@@ -184,15 +184,18 @@ class _ChatScreenState extends State<ChatScreen> {
             content: Text('✗ Ошибка отправки: $e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 10),
+            behavior: SnackBarBehavior.floating,
             action: SnackBarAction(
               label: 'Копировать',
               textColor: Colors.white,
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: 'Ошибка отправки: $e'));
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Ошибка скопирована'),
                     duration: Duration(seconds: 2),
+                    behavior: SnackBarBehavior.floating,
                   ),
                 );
               },

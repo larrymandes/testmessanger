@@ -230,9 +230,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final contactEmail = invite['email'] as String;
     final contactPubKey = invite['pubkey'] as String;
     
+    print('Handling invite from $contactEmail');
+    
     // Проверяем, не добавлен ли уже
     final existing = await StorageService.getContact(widget.email, contactEmail);
-    if (existing != null) return;
+    if (existing != null) {
+      print('Contact $contactEmail already exists');
+      return;
+    }
     
     // Сохраняем контакт (БЕЗ отправки invite обратно, как в оригинале)
     await StorageService.saveContact(
@@ -241,8 +246,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
       publicKey: contactPubKey,
     );
     
+    print('Contact $contactEmail saved');
+    
     // Перезагружаем список контактов
     await _loadContacts();
+    
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _handleReadReceipt(Map<String, dynamic> receipt, String from) async {
@@ -445,15 +456,18 @@ class _ChatListScreenState extends State<ChatListScreen> {
         content: Text('✗ $title: $error'),
         backgroundColor: Colors.red,
         duration: const Duration(seconds: 10),
+        behavior: SnackBarBehavior.floating,
         action: SnackBarAction(
           label: 'Копировать',
           textColor: Colors.white,
           onPressed: () {
             Clipboard.setData(ClipboardData(text: '$title: $error'));
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Ошибка скопирована'),
                 duration: Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
               ),
             );
           },
