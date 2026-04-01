@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:telegram_ios_ui_kit/telegram_ios_ui_kit.dart';
 import 'package:pointycastle/api.dart' show AsymmetricKeyPair, PublicKey, PrivateKey;
 import '../services/email_service.dart';
 import '../services/crypto_service.dart';
@@ -51,8 +50,6 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = TelegramTheme.of(context);
-    
     final tabs = [
       ContactsTab(
         email: widget.email,
@@ -79,20 +76,20 @@ class _MainScreenState extends State<MainScreen> {
         index: _currentIndex,
         children: tabs,
       ),
-      bottomNavigationBar: TelegramBottomTabBar(
+      bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
-          TelegramTabItem(
-            icon: CupertinoIcons.person_2,
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.person_2),
             label: 'Контакты',
           ),
-          TelegramTabItem(
-            icon: CupertinoIcons.chat_bubble_2,
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.chat_bubble_2),
             label: 'Чаты',
           ),
-          TelegramTabItem(
-            icon: CupertinoIcons.settings,
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.settings),
             label: 'Настройки',
           ),
         ],

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:telegram_ios_ui_kit/telegram_ios_ui_kit.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:pointycastle/api.dart' show AsymmetricKeyPair, PublicKey, PrivateKey;
@@ -10,6 +9,7 @@ import 'dart:math';
 import '../services/email_service.dart';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
+import '../theme/app_theme.dart';
 
 class ChatScreen extends StatefulWidget {
   final String contactEmail;
@@ -207,22 +207,20 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = TelegramTheme.of(context);
-    
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        backgroundColor: theme.colors.headerBgColor,
+        backgroundColor: AppTheme.headerBgColor,
         border: null,
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
-          child: Icon(CupertinoIcons.back, color: theme.colors.accentTextColor),
+          child: const Icon(CupertinoIcons.back, color: AppTheme.accentTextColor),
           onPressed: () => Navigator.pop(context),
         ),
         middle: Column(
           children: [
             Text(
               widget.contactEmail,
-              style: TextStyle(color: theme.colors.textColor, fontSize: 17),
+              style: const TextStyle(color: AppTheme.textColor, fontSize: 17),
             ),
             FutureBuilder<String>(
               future: CryptoService.getFingerprint(widget.contactPublicKey),
@@ -230,10 +228,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 if (!snapshot.hasData) return const SizedBox();
                 return Text(
                   snapshot.data!,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 10,
                     fontFamily: 'monospace',
-                    color: theme.colors.subtitleTextColor,
+                    color: AppTheme.subtitleTextColor,
                   ),
                 );
               },
@@ -251,36 +249,7 @@ class _ChatScreenState extends State<ChatScreen> {
             name: userId == widget.myEmail ? 'Вы' : widget.contactEmail,
           );
         },
-        theme: ChatTheme.dark().copyWith(
-          colors: ChatTheme.dark().colors.copyWith(
-            primary: theme.colors.accentTextColor,
-            secondary: theme.colors.sectionBgColor,
-            surface: theme.colors.bgColor,
-            onSurface: theme.colors.textColor,
-            onPrimary: theme.colors.buttonTextColor,
-            error: theme.colors.destructiveTextColor,
-          ),
-          typography: ChatTheme.dark().typography.copyWith(
-            bodyTextStyle: TextStyle(
-              color: theme.colors.textColor,
-              fontSize: 16,
-              height: 1.4,
-            ),
-            sentTextStyle: TextStyle(
-              color: theme.colors.textColor,
-              fontSize: 16,
-              height: 1.4,
-            ),
-            receivedTextStyle: TextStyle(
-              color: theme.colors.textColor,
-              fontSize: 16,
-              height: 1.4,
-            ),
-          ),
-          spacing: ChatTheme.dark().spacing.copyWith(
-            messageBorderRadius: 18,
-          ),
-        ),
+        theme: AppTheme.chatTheme,
       ),
     );
   }

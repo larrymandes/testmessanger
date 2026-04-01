@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:telegram_ios_ui_kit/telegram_ios_ui_kit.dart';
 import 'dart:async';
 import 'package:pointycastle/api.dart' show AsymmetricKeyPair, PublicKey, PrivateKey;
 import '../services/email_service.dart';
@@ -9,6 +8,7 @@ import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
 import 'dart:convert';
 import 'chat_screen.dart';
+import '../theme/app_theme.dart';
 
 class ChatsTab extends StatefulWidget {
   final String email;
@@ -213,92 +213,201 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin 
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final theme = TelegramTheme.of(context);
     
-    return Scaffold(
-      backgroundColor: theme.colors.bgColor,
-      body: CustomScrollView(
-        slivers: [
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _ChatHeaderDelegate(
-              email: widget.email,
-              connectionStatus: _connectionStatus,
-              theme: theme,
+    return CupertinoPageScaffold(
+      navigationBar: CupertinoNavigationBar(
+        backgroundColor: AppTheme.headerBgColor,
+        border: null,
+        middle: Column(
+          children: [
+            const Text('Чаты', style: TextStyle(color: AppTheme.textColor)),
+            Text(
+              _connectionStatus,
+              style: TextStyle(
+                fontSize: 11,
+                color: _connectionStatus == 'Подключено' 
+                  ? AppTheme.accentTextColor
+                  : _connectionStatus == 'Ошибка'
+                    ? AppTheme.destructiveTextColor
+                    : AppTheme.subtitleTextColor,
+              ),
             ),
-          ),
-          if (_isLoading)
-            const SliverFillRemaining(
-              child: Center(child: CupertinoActivityIndicator()),
-            )
-          else if (_chats.isEmpty)
-            SliverFillRemaining(child: _buildEmptyState(theme))
-          else
-            _buildChatList(theme),
-        ],
+          ],
+        ),
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          child: const Icon(CupertinoIcons.square_pencil, color: AppTheme.accentTextColor),
+          onPressed: () {
+            // TODO: Новый чат
+          },
+        ),
       ),
+      child: _isLoading
+          ? const Center(child: CupertinoActivityIndicator())
+          : _chats.isEmpty
+              ? _buildEmptyState()
+              : _buildChatList(),
     );
   }
 
-  Widget _buildEmptyState(TelegramThemeData theme) {
+  Widget _buildEmptyState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(CupertinoIcons.chat_bubble_2, size: 80, color: theme.colors.subtitleTextColor),
+          Icon(CupertinoIcons.chat_bubble_2, size: 80, color: AppTheme.subtitleTextColor),
           const SizedBox(height: 16),
-          Text(
+          const Text(
             'Нет чатов',
-            style: TextStyle(fontSize: 20, color: theme.colors.subtitleTextColor),
+            style: TextStyle(fontSize: 20, color: AppTheme.subtitleTextColor),
           ),
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'Добавьте контакт на вкладке Контакты',
-            style: TextStyle(color: theme.colors.hintColor, fontSize: 14),
+            style: TextStyle(color: AppTheme.hintColor, fontSize: 14),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildChatList(TelegramThemeData theme) {
+  Widget _buildChatList() {
     final sortedChats = _chats.entries.toList()
       ..sort((a, b) => (b.value['lastTimestamp'] as int).compareTo(a.value['lastTimestamp'] as int));
 
-    return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          final entry = sortedChats[index];
-          final email = entry.key;
-          final chat = entry.value;
-          
-          return TelegramChatListTile(
-            avatar: TelegramAvatar(
-              text: email[0].toUpperCase(),
-              size: 56,
+    return ListView.separated(
+      itemCount: sortedChats.length,
+      separatorBuilder: (context, index) => Divider(
+        height: 1,
+        thickness: 0.5,
+        color: AppTheme.sectionSeparatorColor,
+        indent: 72,
+      ),
+      itemBuilder: (context, index) {
+        final entry = sortedChats[index];
+        final email = entry.key;
+        final chat = entry.value;
+        
+        return _buildChatItem(email, chat);
+      },
+    );
+  }
+
+  Widget _buildChatItem(String email, Map<String, dynamic> chat) {
+    final lastTimestamp = chat['lastTimestamp'] as int;
+    final timeStr = _formatTime(lastTimestamp);
+    final unreadCount = chat['unreadCount'] as int;
+
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: () {
+        Navigator.push(
+          context,
+          CupertinoPageRoute(
+            builder: (context) => ChatScreen(
+              contactEmail: email,
+              contactPublicKey: chat['publicKey'],
+              myEmail: widget.email,
+              myKeyPair: _myKeyPair!,
+              myPublicKeyHex: _myPublicKeyHex!,
+              emailService: widget.emailService,
             ),
-            title: email,
-            subtitle: chat['lastMessage'] ?? 'Нет сообщений',
-            timestamp: _formatTime(chat['lastTimestamp'] as int),
-            unreadCount: chat['unreadCount'] as int,
-            onTap: () {
-              Navigator.push(
-                context,
-                CupertinoPageRoute(
-                  builder: (context) => ChatScreen(
-                    contactEmail: email,
-                    contactPublicKey: chat['publicKey'],
-                    myEmail: widget.email,
-                    myKeyPair: _myKeyPair!,
-                    myPublicKeyHex: _myPublicKeyHex!,
-                    emailService: widget.emailService,
+          ),
+        ).then((_) => _loadContacts());
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        color: AppTheme.bgColor,
+        child: Row(
+          children: [
+            // Аватар
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppTheme.accentTextColor,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  email[0].toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-              ).then((_) => _loadContacts());
-            },
-          );
-        },
-        childCount: sortedChats.length,
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Контент
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          email,
+                          style: const TextStyle(
+                            color: AppTheme.textColor,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        timeStr,
+                        style: const TextStyle(
+                          color: AppTheme.subtitleTextColor,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          chat['lastMessage'] ?? 'Нет сообщений',
+                          style: const TextStyle(
+                            color: AppTheme.subtitleTextColor,
+                            fontSize: 15,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (unreadCount > 0) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppTheme.accentTextColor,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            unreadCount.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -349,128 +458,5 @@ class _ChatsTabState extends State<ChatsTab> with AutomaticKeepAliveClientMixin 
   void dispose() {
     // EmailService будет закрыт в MainScreen
     super.dispose();
-  }
-}
-
-
-// Custom header delegate для Telegram-style large title
-class _ChatHeaderDelegate extends SliverPersistentHeaderDelegate {
-  final String email;
-  final String connectionStatus;
-  final TelegramThemeData theme;
-
-  _ChatHeaderDelegate({
-    required this.email,
-    required this.connectionStatus,
-    required this.theme,
-  });
-
-  @override
-  double get minExtent => 44;
-
-  @override
-  double get maxExtent => 96;
-
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    final progress = (shrinkOffset / (maxExtent - minExtent)).clamp(0.0, 1.0);
-    
-    return Container(
-      color: theme.colors.headerBgColor,
-      child: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            // Navigation bar
-            SizedBox(
-              height: 44,
-              child: Stack(
-                children: [
-                  Center(
-                    child: Opacity(
-                      opacity: progress,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Чаты',
-                            style: TextStyle(
-                              color: theme.colors.textColor,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Text(
-                            connectionStatus,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: connectionStatus == 'Подключено' 
-                                ? theme.colors.accentTextColor
-                                : connectionStatus == 'Ошибка'
-                                  ? theme.colors.destructiveTextColor
-                                  : theme.colors.subtitleTextColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: 8,
-                    top: 0,
-                    bottom: 0,
-                    child: CupertinoButton(
-                      padding: EdgeInsets.zero,
-                      child: Icon(CupertinoIcons.square_pencil, color: theme.colors.accentTextColor),
-                      onPressed: () {},
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Large title
-            if (progress < 1)
-              Opacity(
-                opacity: 1 - progress,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Чаты',
-                          style: TextStyle(
-                            color: theme.colors.textColor,
-                            fontSize: 34,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          connectionStatus,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: connectionStatus == 'Подключено' 
-                              ? theme.colors.accentTextColor
-                              : connectionStatus == 'Ошибка'
-                                ? theme.colors.destructiveTextColor
-                                : theme.colors.subtitleTextColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  bool shouldRebuild(covariant _ChatHeaderDelegate oldDelegate) {
-    return connectionStatus != oldDelegate.connectionStatus;
   }
 }

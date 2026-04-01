@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:telegram_ios_ui_kit/telegram_ios_ui_kit.dart';
 import 'package:pointycastle/api.dart' show AsymmetricKeyPair, PublicKey, PrivateKey;
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
 import '../services/email_service.dart';
 import 'qr_screen.dart';
+import '../theme/app_theme.dart';
 
 class ContactsTab extends StatefulWidget {
   final String email;
@@ -46,39 +46,36 @@ class _ContactsTabState extends State<ContactsTab> with AutomaticKeepAliveClient
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final theme = TelegramTheme.of(context);
     
-    return Scaffold(
-      backgroundColor: theme.colors.bgColor,
-      body: CustomScrollView(
-        slivers: [
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _ContactsHeaderDelegate(theme: theme),
-          ),
-          if (_isLoading)
-            const SliverFillRemaining(
-              child: Center(child: CupertinoActivityIndicator()),
-            )
-          else if (_contacts.isEmpty)
-            SliverFillRemaining(child: _buildEmptyState(theme))
-          else
-            _buildContactList(theme),
-        ],
+    return CupertinoPageScaffold(
+      navigationBar: CupertinoNavigationBar(
+        backgroundColor: AppTheme.headerBgColor,
+        border: null,
+        middle: const Text('Контакты', style: TextStyle(color: AppTheme.textColor)),
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          child: const Icon(CupertinoIcons.add, color: AppTheme.accentTextColor),
+          onPressed: _showAddContactOptions,
+        ),
       ),
+      child: _isLoading
+          ? const Center(child: CupertinoActivityIndicator())
+          : _contacts.isEmpty
+              ? _buildEmptyState()
+              : _buildContactList(),
     );
   }
 
-  Widget _buildEmptyState(TelegramThemeData theme) {
+  Widget _buildEmptyState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(CupertinoIcons.person_2, size: 80, color: theme.colors.subtitleTextColor),
+          Icon(CupertinoIcons.person_2, size: 80, color: AppTheme.subtitleTextColor),
           const SizedBox(height: 16),
-          Text(
+          const Text(
             'Нет контактов',
-            style: TextStyle(fontSize: 20, color: theme.colors.subtitleTextColor),
+            style: TextStyle(fontSize: 20, color: AppTheme.subtitleTextColor),
           ),
           const SizedBox(height: 24),
           CupertinoButton.filled(
@@ -90,24 +87,65 @@ class _ContactsTabState extends State<ContactsTab> with AutomaticKeepAliveClient
     );
   }
 
-  Widget _buildContactList(TelegramThemeData theme) {
-    return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          final contact = _contacts[index];
-          final email = contact['email'] as String;
-          
-          return TelegramContactListTile(
-            avatar: TelegramAvatar(
-              text: email[0].toUpperCase(),
-              size: 56,
-            ),
-            name: email,
-            onTap: () => _showContactDetails(contact),
-          );
-        },
-        childCount: _contacts.length,
+  Widget _buildContactList() {
+    return ListView.separated(
+      itemCount: _contacts.length,
+      separatorBuilder: (context, index) => Divider(
+        height: 1,
+        thickness: 0.5,
+        color: AppTheme.sectionSeparatorColor,
+        indent: 72,
       ),
+      itemBuilder: (context, index) {
+        final contact = _contacts[index];
+        final email = contact['email'] as String;
+        
+        return CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: () => _showContactDetails(contact),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            color: AppTheme.bgColor,
+            child: Row(
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentTextColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      email[0].toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    email,
+                    style: const TextStyle(
+                      color: AppTheme.textColor,
+                      fontSize: 17,
+                    ),
+                  ),
+                ),
+                const Icon(
+                  CupertinoIcons.chevron_right,
+                  color: AppTheme.subtitleTextColor,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -203,87 +241,4 @@ class _ContactsTabState extends State<ContactsTab> with AutomaticKeepAliveClient
       ),
     );
   }
-}
-
-
-class _ContactsHeaderDelegate extends SliverPersistentHeaderDelegate {
-  final TelegramThemeData theme;
-
-  _ContactsHeaderDelegate({required this.theme});
-
-  @override
-  double get minExtent => 44;
-
-  @override
-  double get maxExtent => 96;
-
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    final progress = (shrinkOffset / (maxExtent - minExtent)).clamp(0.0, 1.0);
-    
-    return Container(
-      color: theme.colors.headerBgColor,
-      child: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            SizedBox(
-              height: 44,
-              child: Stack(
-                children: [
-                  Center(
-                    child: Opacity(
-                      opacity: progress,
-                      child: Text(
-                        'Контакты',
-                        style: TextStyle(
-                          color: theme.colors.textColor,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: 8,
-                    top: 0,
-                    bottom: 0,
-                    child: CupertinoButton(
-                      padding: EdgeInsets.zero,
-                      child: Icon(CupertinoIcons.add, color: theme.colors.accentTextColor),
-                      onPressed: () {
-                        final state = context.findAncestorStateOfType<_ContactsTabState>();
-                        state?._showAddContactOptions();
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (progress < 1)
-              Opacity(
-                opacity: 1 - progress,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Контакты',
-                      style: TextStyle(
-                        color: theme.colors.textColor,
-                        fontSize: 34,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  bool shouldRebuild(covariant _ContactsHeaderDelegate oldDelegate) => false;
 }

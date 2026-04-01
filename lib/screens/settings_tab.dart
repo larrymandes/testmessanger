@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:telegram_ios_ui_kit/telegram_ios_ui_kit.dart';
 import '../services/storage_service.dart';
 import '../services/crypto_service.dart';
-import '../services/email_service.dart';
+import '../theme/app_theme.dart';
 import 'account_select_screen.dart';
-import 'qr_screen.dart';
 
 class SettingsTab extends StatefulWidget {
   final String email;
@@ -46,49 +44,109 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final theme = TelegramTheme.of(context);
     
-    return Scaffold(
-      backgroundColor: theme.colors.bgColor,
-      body: CustomScrollView(
-        slivers: [
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _SettingsHeaderDelegate(theme: theme),
-          ),
-          SliverToBoxAdapter(
-            child: Column(
-              children: [
-                const SizedBox(height: 24),
-                _buildProfileSection(theme),
-                const SizedBox(height: 24),
-                _buildAccountSection(theme),
-                const SizedBox(height: 24),
-                _buildDataSection(theme),
-                const SizedBox(height: 24),
-                _buildAboutSection(theme),
+    return CupertinoPageScaffold(
+      navigationBar: const CupertinoNavigationBar(
+        backgroundColor: AppTheme.headerBgColor,
+        border: null,
+        middle: Text('Настройки', style: TextStyle(color: AppTheme.textColor)),
+      ),
+      child: SafeArea(
+        child: ListView(
+          children: [
+            const SizedBox(height: 24),
+            // Профиль
+            _buildProfileSection(),
+            const SizedBox(height: 24),
+            // Аккаунт
+            _buildSection(
+              title: 'АККАУНТ',
+              items: [
+                _buildSettingsItem(
+                  icon: CupertinoIcons.person,
+                  title: widget.email,
+                  subtitle: _fingerprint,
+                  onTap: () {},
+                ),
+                _buildSettingsItem(
+                  icon: CupertinoIcons.arrow_right_arrow_left,
+                  title: 'Сменить аккаунт',
+                  onTap: _switchAccount,
+                ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+            // Данные
+            _buildSection(
+              title: 'ДАННЫЕ',
+              items: [
+                _buildSettingsItem(
+                  icon: CupertinoIcons.arrow_down_doc,
+                  title: 'Экспорт данных',
+                  subtitle: 'Сохранить ключи и чаты',
+                  onTap: () {
+                    // TODO: Экспорт
+                    _showComingSoon();
+                  },
+                ),
+                _buildSettingsItem(
+                  icon: CupertinoIcons.arrow_up_doc,
+                  title: 'Импорт данных',
+                  subtitle: 'Восстановить из файла',
+                  onTap: () {
+                    // TODO: Импорт
+                    _showComingSoon();
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            // О приложении
+            _buildSection(
+              title: 'О ПРИЛОЖЕНИИ',
+              items: [
+                _buildSettingsItem(
+                  icon: CupertinoIcons.info,
+                  title: 'Secure Messenger',
+                  subtitle: 'E2EE over Email • v1.0.0',
+                  onTap: () {},
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildProfileSection(TelegramThemeData theme) {
+  Widget _buildProfileSection() {
     return Container(
       alignment: Alignment.center,
       child: Column(
         children: [
-          TelegramAvatar(
-            text: widget.email[0].toUpperCase(),
-            size: 80,
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: AppTheme.accentTextColor,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                widget.email[0].toUpperCase(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 36,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 12),
           Text(
             widget.email,
-            style: TextStyle(
-              color: theme.colors.textColor,
+            style: const TextStyle(
+              color: AppTheme.textColor,
               fontSize: 20,
               fontWeight: FontWeight.w600,
             ),
@@ -98,56 +156,89 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
     );
   }
 
-  Widget _buildAccountSection(TelegramThemeData theme) {
-    return TelegramSettingsGroup(
-      header: 'АККАУНТ',
+  Widget _buildSection({
+    required String title,
+    required List<Widget> items,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TelegramSettingsCell(
-          leading: Icon(CupertinoIcons.person, color: theme.colors.accentTextColor),
-          title: widget.email,
-          subtitle: _fingerprint,
-          onTap: () {},
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text(
+            title,
+            style: const TextStyle(
+              color: AppTheme.sectionHeaderTextColor,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ),
-        TelegramSettingsCell(
-          leading: Icon(CupertinoIcons.arrow_right_arrow_left, color: theme.colors.accentTextColor),
-          title: 'Сменить аккаунт',
-          onTap: _switchAccount,
+        Container(
+          color: AppTheme.sectionBgColor,
+          child: Column(children: items),
         ),
       ],
     );
   }
 
-  Widget _buildDataSection(TelegramThemeData theme) {
-    return TelegramSettingsGroup(
-      header: 'ДАННЫЕ',
-      children: [
-        TelegramSettingsCell(
-          leading: Icon(CupertinoIcons.arrow_down_doc, color: theme.colors.accentTextColor),
-          title: 'Экспорт данных',
-          subtitle: 'Сохранить ключи и чаты',
-          onTap: _showComingSoon,
+  Widget _buildSettingsItem({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required VoidCallback onTap,
+  }) {
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: const BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: AppTheme.sectionSeparatorColor,
+              width: 0.5,
+            ),
+          ),
         ),
-        TelegramSettingsCell(
-          leading: Icon(CupertinoIcons.arrow_up_doc, color: theme.colors.accentTextColor),
-          title: 'Импорт данных',
-          subtitle: 'Восстановить из файла',
-          onTap: _showComingSoon,
+        child: Row(
+          children: [
+            Icon(icon, color: AppTheme.accentTextColor, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: AppTheme.textColor,
+                      fontSize: 17,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: AppTheme.subtitleTextColor,
+                        fontSize: 13,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const Icon(
+              CupertinoIcons.chevron_right,
+              color: AppTheme.subtitleTextColor,
+              size: 20,
+            ),
+          ],
         ),
-      ],
-    );
-  }
-
-  Widget _buildAboutSection(TelegramThemeData theme) {
-    return TelegramSettingsGroup(
-      header: 'О ПРИЛОЖЕНИИ',
-      children: [
-        TelegramSettingsCell(
-          leading: Icon(CupertinoIcons.info, color: theme.colors.accentTextColor),
-          title: 'Secure Messenger',
-          subtitle: 'E2EE over Email • v1.0.0',
-          onTap: () {},
-        ),
-      ],
+      ),
     );
   }
 
@@ -255,70 +346,4 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
   Future<void> _loadContacts() async {
     // Stub для обновления после добавления контакта
   }
-}
-
-
-class _SettingsHeaderDelegate extends SliverPersistentHeaderDelegate {
-  final TelegramThemeData theme;
-
-  _SettingsHeaderDelegate({required this.theme});
-
-  @override
-  double get minExtent => 44;
-
-  @override
-  double get maxExtent => 96;
-
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    final progress = (shrinkOffset / (maxExtent - minExtent)).clamp(0.0, 1.0);
-    
-    return Container(
-      color: theme.colors.headerBgColor,
-      child: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            SizedBox(
-              height: 44,
-              child: Center(
-                child: Opacity(
-                  opacity: progress,
-                  child: Text(
-                    'Настройки',
-                    style: TextStyle(
-                      color: theme.colors.textColor,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            if (progress < 1)
-              Opacity(
-                opacity: 1 - progress,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Настройки',
-                      style: TextStyle(
-                        color: theme.colors.textColor,
-                        fontSize: 34,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  bool shouldRebuild(covariant _SettingsHeaderDelegate oldDelegate) => false;
 }

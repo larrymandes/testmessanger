@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:telegram_ios_ui_kit/telegram_ios_ui_kit.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'dart:convert';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
 import '../services/email_service.dart';
+import '../theme/app_theme.dart';
 
 class QRScreen extends StatelessWidget {
   final String myEmail;
@@ -22,92 +22,88 @@ class QRScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final qrData = 'chatinvite:$myEmail:$myPublicKey:${DateTime.now().millisecondsSinceEpoch}';
-    final theme = TelegramTheme.of(context);
 
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        backgroundColor: theme.colors.headerBgColor,
+        backgroundColor: AppTheme.headerBgColor,
         border: null,
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
-          child: Icon(CupertinoIcons.back, color: theme.colors.accentTextColor),
+          child: const Icon(CupertinoIcons.back, color: AppTheme.accentTextColor),
           onPressed: () => Navigator.pop(context),
         ),
-        middle: Text('Мой QR-код', style: TextStyle(color: theme.colors.textColor)),
+        middle: const Text('Мой QR-код', style: TextStyle(color: AppTheme.textColor)),
       ),
-      child: Container(
-        color: theme.colors.bgColor,
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: QrImageView(
-                    data: qrData,
-                    version: QrVersions.auto,
-                    size: 280,
-                  ),
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                const SizedBox(height: 24),
-                Text(
-                  myEmail,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: theme.colors.textColor,
-                  ),
+                child: QrImageView(
+                  data: qrData,
+                  version: QrVersions.auto,
+                  size: 280,
                 ),
-                const SizedBox(height: 16),
-                FutureBuilder<String>(
-                  future: CryptoService.getFingerprint(myPublicKey),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) return const SizedBox();
-                    return Text(
-                      'Fingerprint:\n${snapshot.data}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontFamily: 'monospace',
-                        color: theme.colors.subtitleTextColor,
-                      ),
-                    );
-                  },
+              ),
+              const SizedBox(height: 24),
+              Text(
+                myEmail,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textColor,
                 ),
-                const SizedBox(height: 24),
-                CupertinoButton.filled(
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(CupertinoIcons.doc_on_clipboard, size: 20),
-                      SizedBox(width: 8),
-                      Text('Скопировать'),
-                    ],
-                  ),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: qrData));
-                    showCupertinoDialog(
-                      context: context,
-                      builder: (context) => CupertinoAlertDialog(
-                        content: const Text('Скопировано!'),
-                        actions: [
-                          CupertinoDialogAction(
-                            child: const Text('OK'),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+              ),
+              const SizedBox(height: 16),
+              FutureBuilder<String>(
+                future: CryptoService.getFingerprint(myPublicKey),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const SizedBox();
+                  return Text(
+                    'Fingerprint:\n${snapshot.data}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                      color: AppTheme.subtitleTextColor,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 24),
+              CupertinoButton.filled(
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(CupertinoIcons.doc_on_clipboard, size: 20),
+                    SizedBox(width: 8),
+                    Text('Скопировать'),
+                  ],
                 ),
-              ],
-            ),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: qrData));
+                  showCupertinoDialog(
+                    context: context,
+                    builder: (context) => CupertinoAlertDialog(
+                      content: const Text('Скопировано!'),
+                      actions: [
+                        CupertinoDialogAction(
+                          child: const Text('OK'),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
         ),
       ),
@@ -139,21 +135,19 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = TelegramTheme.of(context);
-    
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        backgroundColor: theme.colors.headerBgColor,
+        backgroundColor: AppTheme.headerBgColor,
         border: null,
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
-          child: Icon(CupertinoIcons.back, color: theme.colors.accentTextColor),
+          child: const Icon(CupertinoIcons.back, color: AppTheme.accentTextColor),
           onPressed: () => Navigator.pop(context),
         ),
-        middle: Text('Сканировать QR', style: TextStyle(color: theme.colors.textColor)),
+        middle: const Text('Сканировать QR', style: TextStyle(color: AppTheme.textColor)),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
-          child: Icon(CupertinoIcons.camera_rotate, color: theme.colors.accentTextColor),
+          child: const Icon(CupertinoIcons.camera_rotate, color: AppTheme.accentTextColor),
           onPressed: () => _controller.switchCamera(),
         ),
       ),
@@ -177,12 +171,12 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
           ),
           Container(
             padding: const EdgeInsets.all(16),
-            color: theme.colors.bottomBarBgColor,
+            color: AppTheme.bottomBarBgColor,
             child: Column(
               children: [
-                Text(
+                const Text(
                   'Наведите камеру на QR-код контакта',
-                  style: TextStyle(fontSize: 16, color: theme.colors.textColor),
+                  style: TextStyle(fontSize: 16, color: AppTheme.textColor),
                 ),
                 const SizedBox(height: 16),
                 CupertinoButton(
