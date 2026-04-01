@@ -49,12 +49,19 @@ jobs:
           channel: 'stable'
       - run: flutter create . --platforms=ios
       - run: flutter pub get
-      - run: flutter build ios --release --no-codesign
-      - name: Create IPA
+      - name: Add iOS permissions
+        run: |
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Для сканирования QR-кодов контактов'" ios/Runner/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Для сохранения QR-кодов'" ios/Runner/Info.plist || true
+      - name: Build iOS without codesign
+        run: |
+          flutter build ios --release --no-codesign
+      - name: Create unsigned IPA
         run: |
           mkdir -p Payload
           cp -r build/ios/iphoneos/Runner.app Payload/
           zip -r app-unsigned.ipa Payload
+          rm -rf Payload
       - uses: actions/upload-artifact@v4
         with:
           name: ios-ipa-unsigned

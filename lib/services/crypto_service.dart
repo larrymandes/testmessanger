@@ -1,7 +1,19 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:math' show Random;
-import 'package:pointycastle/export.dart';
+import 'package:pointycastle/api.dart';
+import 'package:pointycastle/ecc/api.dart';
+import 'package:pointycastle/ecc/curves/secp256r1.dart';
+import 'package:pointycastle/key_generators/api.dart';
+import 'package:pointycastle/key_generators/ec_key_generator.dart';
+import 'package:pointycastle/random/fortuna_random.dart';
+import 'package:pointycastle/digests/sha256.dart';
+import 'package:pointycastle/block/aes.dart';
+import 'package:pointycastle/block/modes/gcm.dart';
+import 'package:pointycastle/key_derivators/api.dart';
+import 'package:pointycastle/macs/hmac.dart';
+import 'package:pointycastle/signers/ecdsa_signer.dart';
+import 'package:pointycastle/key_agreement/ecdh.dart';
 
 class CryptoService {
   // Генерация ключевой пары ECDH P-256
@@ -60,7 +72,7 @@ class CryptoService {
 
     // ECDH для получения shared secret
     final agreement = ECDHBasicAgreement();
-    agreement.init(ephemeralKeyPair.privateKey);
+    agreement.init(ephemeralKeyPair.privateKey as ECPrivateKey);
     final sharedSecret = agreement.calculateAgreement(recipientPubKey);
     final sharedSecretBytes = _encodeBigInt(sharedSecret);
 
@@ -109,7 +121,7 @@ class CryptoService {
 
     // ECDH для получения shared secret
     final agreement = ECDHBasicAgreement();
-    agreement.init(myKeyPair.privateKey);
+    agreement.init(myKeyPair.privateKey as ECPrivateKey);
     final sharedSecret = agreement.calculateAgreement(ephemeralPubKey);
     final sharedSecretBytes = _encodeBigInt(sharedSecret);
 

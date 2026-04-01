@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
-import 'package:pointycastle/export.dart';
+import 'package:pointycastle/api.dart' show AsymmetricKeyPair, PublicKey, PrivateKey;
 import 'dart:convert';
 import 'dart:math';
 import '../services/email_service.dart';

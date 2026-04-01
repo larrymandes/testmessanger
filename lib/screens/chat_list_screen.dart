@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:pointycastle/export.dart';
+import 'package:pointycastle/api.dart' show AsymmetricKeyPair, PublicKey, PrivateKey;
 import '../services/email_service.dart';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
