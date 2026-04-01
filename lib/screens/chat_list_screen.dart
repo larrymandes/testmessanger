@@ -27,6 +27,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   late EmailService _emailService;
   final Map<String, Map<String, dynamic>> _chats = {};
   bool _isLoading = true;
+  String _connectionStatus = 'Подключение...';
   AsymmetricKeyPair<PublicKey, PrivateKey>? _myKeyPair;
   String? _myPublicKeyHex;
 
@@ -38,11 +39,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
       password: widget.password,
     );
     _initialize();
-    
-    // Периодическая проверка на случай если IDLE не сработает
-    Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) _fetchNewMessages();
-    });
   }
 
   Future<void> _initialize() async {
@@ -54,25 +50,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
       await _loadContacts();
       
       // Подключаемся к IMAP
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Подключение к почте...')),
-        );
-      }
+      setState(() => _connectionStatus = 'Подключение...');
       
       await _emailService.connectImap();
       
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✓ Подключено'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
+      setState(() => _connectionStatus = 'Подключено');
       
-      // Слушаем новые сообщения
+      // Слушаем новые сообщения через IDLE
       _emailService.listenForNewMessages().listen((_) {
         _fetchNewMessages();
       });
@@ -80,6 +64,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       // Получаем новые сообщения
       await _fetchNewMessages();
     } catch (e) {
+      setState(() => _connectionStatus = 'Ошибка');
       if (mounted) {
         _showErrorWithCopy('Ошибка подключения', e.toString());
       }
@@ -142,14 +127,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
       
       if (newMessages.isNotEmpty) {
         await _loadContacts();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Получено ${newMessages.length} сообщений')),
-          );
-        }
       }
     } catch (e) {
       print('Fetch error: $e');
+      setState(() => _connectionStatus = 'Ошибка');
       if (mounted) {
         _showErrorWithCopy('Ошибка получения', e.toString());
       }
@@ -223,12 +204,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
     
     // Перезагружаем список контактов
     await _loadContacts();
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('✓ Новый контакт: $contactEmail')),
-      );
-    }
   }
 
   Future<void> _handleReadReceipt(Map<String, dynamic> receipt, String from) async {
@@ -249,30 +224,36 @@ class _ChatListScreenState extends State<ChatListScreen> {
       timestamp: DateTime.now().millisecondsSinceEpoch,
       uid: message['uid'],
     );
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('📩 Новое сообщение от $from'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.email),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.email),
+            Text(
+              _connectionStatus,
+              style: TextStyle(
+                fontSize: 12,
+                color: _connectionStatus == 'Подключено' 
+                  ? Colors.green[300] 
+                  : _connectionStatus == 'Ошибка'
+                    ? Colors.red[300]
+                    : Colors.grey[400],
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () async {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Проверка почты...')),
-              );
+              setState(() => _connectionStatus = 'Обновление...');
               await _fetchNewMessages();
+              setState(() => _connectionStatus = 'Подключено');
             },
           ),
           IconButton(

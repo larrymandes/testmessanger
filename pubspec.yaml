@@ -9,6 +9,9 @@ dependencies:
   flutter:
     sdk: flutter
   
+  # UI - Telegram iOS UI Kit
+  telegram_ios_ui_kit: ^2.26.0
+  
   # UI - Flyer Chat от flyerhq
   flutter_chat_core: ^2.0.0
   flutter_chat_ui: ^2.0.0

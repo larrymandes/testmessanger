@@ -12,6 +12,7 @@ class EmailService {
   ImapClient? _imapClient;
   SmtpClient? _smtpClient;
   StreamController<void>? _newMessageController;
+  bool _isIdleActive = false;
 
   EmailService({
     required this.email,
@@ -38,26 +39,51 @@ class EmailService {
 
   // IMAP IDLE для мгновенных уведомлений
   Stream<void> listenForNewMessages() {
-    _newMessageController = StreamController<void>.broadcast();
+    if (_newMessageController != null && !_newMessageController!.isClosed) {
+      return _newMessageController!.stream;
+    }
     
-    // IMAP IDLE работает через polling в enough_mail
-    // Используем таймер для проверки новых сообщений
-    Timer.periodic(const Duration(seconds: 5), (timer) async {
-      try {
-        final searchResult = await _imapClient?.searchMessages(
-          searchCriteria: 'UNSEEN SUBJECT "[chat]"',
-        );
-        
-        if (searchResult?.matchingSequence != null && 
-            searchResult!.matchingSequence!.isNotEmpty) {
-          _newMessageController?.add(null);
-        }
-      } catch (e) {
-        print('IDLE check error: $e');
-      }
-    });
-
+    _newMessageController = StreamController<void>.broadcast();
+    _startIdleLoop();
+    
     return _newMessageController!.stream;
+  }
+
+  Future<void> _startIdleLoop() async {
+    if (_isIdleActive) return;
+    _isIdleActive = true;
+
+    while (_isIdleActive && _newMessageController != null && !_newMessageController!.isClosed) {
+      try {
+        if (_imapClient == null) {
+          await connectImap();
+        }
+
+        // Запускаем IDLE (блокируется до получения уведомления или 29 минут)
+        final idleResult = await _imapClient!.idleStart();
+        
+        // Ждём события
+        await for (final event in idleResult.eventStream) {
+          if (event is ImapExpungeEvent || event is ImapFetchEvent || event is ImapVanishedEvent) {
+            // Новое письмо или изменение
+            if (_newMessageController != null && !_newMessageController!.isClosed) {
+              _newMessageController!.add(null);
+            }
+            break;
+          }
+        }
+        
+        // Останавливаем IDLE
+        await _imapClient!.idleDone();
+        
+      } catch (e) {
+        print('IDLE error: $e');
+        _imapClient = null;
+        
+        // Ждём перед повторной попыткой
+        await Future.delayed(const Duration(seconds: 10));
+      }
+    }
   }
 
   // Получение новых сообщений
@@ -141,8 +167,11 @@ class EmailService {
 
   // Закрытие соединений
   Future<void> disconnect() async {
+    _isIdleActive = false;
     await _imapClient?.logout();
     await _smtpClient?.quit();
-    await _newMessageController?.close();
+    if (_newMessageController != null && !_newMessageController!.isClosed) {
+      await _newMessageController?.close();
+    }
   }
 }
