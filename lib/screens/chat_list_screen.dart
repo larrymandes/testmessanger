@@ -5,9 +5,11 @@ import 'package:pointycastle/api.dart' show AsymmetricKeyPair, PublicKey, Privat
 import '../services/email_service.dart';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
+import '../services/logger_service.dart';
 import 'dart:convert';
 import 'chat_screen.dart';
 import 'qr_screen.dart';
+import 'logs_screen.dart';
 
 class ChatListScreen extends StatefulWidget {
   final String email;
@@ -131,8 +133,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   Future<void> _fetchNewMessages() async {
     try {
+      LoggerService.log('Fetching new messages...');
       final maxUID = await StorageService.getMaxProcessedUID(widget.email);
       final newMessages = await _emailService.fetchNewMessages(lastSeenUid: maxUID);
+      
+      LoggerService.log('Found ${newMessages.length} new messages');
       
       for (final mimeMessage in newMessages) {
         await _processMessage(mimeMessage);
@@ -142,7 +147,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         await _loadContacts();
       }
     } catch (e) {
-      print('Fetch error: $e');
+      LoggerService.log('Fetch error: $e');
       setState(() => _connectionStatus = 'Ошибка');
       if (mounted) {
         _showErrorWithCopy('Ошибка получения', e.toString());
@@ -156,12 +161,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
       final body = mimeMessage.decodeTextPlainPart() ?? '';
       final uid = mimeMessage.uid ?? 0;
       
-      print('Processing message from $from, UID: $uid');
-      print('Body length: ${body.length}');
+      LoggerService.log('Processing message from $from, UID: $uid');
+      LoggerService.log('Body length: ${body.length}');
       
       // Проверяем не обработано ли уже
       if (await StorageService.isUIDProcessed(widget.email, uid)) {
-        print('UID $uid already processed, skipping');
+        LoggerService.log('UID $uid already processed, skipping');
         return;
       }
       
@@ -169,9 +174,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
       Map<String, dynamic> encrypted;
       try {
         encrypted = jsonDecode(body) as Map<String, dynamic>;
-        print('Encrypted payload keys: ${encrypted.keys.join(", ")}');
+        LoggerService.log('Encrypted payload keys: ${encrypted.keys.join(", ")}');
       } catch (e) {
-        print('Failed to parse JSON: $e');
+        LoggerService.log('Failed to parse JSON: $e');
         await StorageService.addProcessedUID(widget.email, uid);
         return;
       }
@@ -183,9 +188,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
           encrypted: encrypted.map((k, v) => MapEntry(k, v.toString())),
           myKeyPair: _myKeyPair!,
         );
-        print('Decrypted successfully: ${plaintext.substring(0, plaintext.length > 50 ? 50 : plaintext.length)}...');
+        LoggerService.log('Decrypted: ${plaintext.substring(0, plaintext.length > 50 ? 50 : plaintext.length)}...');
       } catch (e) {
-        print('Decryption failed: $e');
+        LoggerService.log('Decryption failed: $e');
         // Помечаем как обработанное чтобы не пытаться снова
         await StorageService.addProcessedUID(widget.email, uid);
         if (mounted) {
@@ -197,7 +202,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       // Парсим содержимое
       try {
         final parsed = jsonDecode(plaintext);
-        print('Message type: ${parsed['type'] ?? 'text'}');
+        LoggerService.log('Message type: ${parsed['type'] ?? 'text'}');
         
         // Обработка приглашения
         if (parsed['type'] == 'invite') {
@@ -213,13 +218,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
         }
       } catch (e) {
         // Старый формат без JSON
-        print('Not JSON, treating as plain text');
+        LoggerService.log('Not JSON, treating as plain text');
         await _handleTextMessage({'text': plaintext, 'uid': uid.toString()}, from, uid);
       }
       
       await StorageService.addProcessedUID(widget.email, uid);
     } catch (e) {
-      print('Process message error: $e');
+      LoggerService.log('Process message error: $e');
       if (mounted) {
         _showErrorWithCopy('Ошибка обработки сообщения', e.toString());
       }
@@ -230,12 +235,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final contactEmail = invite['email'] as String;
     final contactPubKey = invite['pubkey'] as String;
     
-    print('Handling invite from $contactEmail');
+    LoggerService.log('Handling invite from $contactEmail');
     
     // Проверяем, не добавлен ли уже
     final existing = await StorageService.getContact(widget.email, contactEmail);
     if (existing != null) {
-      print('Contact $contactEmail already exists');
+      LoggerService.log('Contact $contactEmail already exists');
       return;
     }
     
@@ -246,7 +251,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       publicKey: contactPubKey,
     );
     
-    print('Contact $contactEmail saved');
+    LoggerService.log('Contact $contactEmail saved');
     
     // Перезагружаем список контактов
     await _loadContacts();
@@ -260,6 +265,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final messageUID = receipt['message_uid'];
     if (messageUID != null) {
       await StorageService.updateMessageStatus(widget.email, messageUID, 'read');
+      LoggerService.log('Message $messageUID marked as read');
       // Обновляем UI
       await _loadContacts();
     }
@@ -274,6 +280,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       timestamp: DateTime.now().millisecondsSinceEpoch,
       uid: message['uid'],
     );
+    LoggerService.log('Text message saved from $from');
   }
 
   @override
@@ -298,6 +305,15 @@ class _ChatListScreenState extends State<ChatListScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.bug_report),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LogsScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () async {

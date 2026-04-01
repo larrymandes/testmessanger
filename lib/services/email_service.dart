@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:enough_mail/enough_mail.dart';
+import 'logger_service.dart';
 
 class EmailService {
   final String email;
@@ -66,13 +67,13 @@ class EmailService {
 
           // Проверяем поддержку IDLE
           if (!_imapClient!.serverInfo.supportsIdle) {
-            print('ERROR: Server does not support IDLE');
+            LoggerService.log('ERROR: Server does not support IDLE');
             throw Exception('IMAP IDLE not supported by server');
           }
 
-          print('IDLE: Starting...');
+          LoggerService.log('IDLE: Starting...');
           await _imapClient!.idleStart();
-          print('IDLE: Active, waiting for events');
+          LoggerService.log('IDLE: Active, waiting for events');
           
           // Ждём события или 28 минут
           bool gotEvent = false;
@@ -82,13 +83,13 @@ class EmailService {
           StreamSubscription<ImapEvent>? subscription;
           if (_imapClient!.eventBus != null) {
             subscription = _imapClient!.eventBus!.on<ImapEvent>().listen((event) {
-              print('IDLE: Event received: ${event.runtimeType}');
+              LoggerService.log('IDLE: Event received: ${event.runtimeType}');
               if (event is ImapExpungeEvent || event is ImapFetchEvent || event is ImapVanishedEvent) {
                 gotEvent = true;
               }
             });
           } else {
-            print('IDLE: WARNING - eventBus is null, events will not be detected');
+            LoggerService.log('IDLE: WARNING - eventBus is null');
           }
           
           // Ждём события или 28 минут
@@ -102,26 +103,26 @@ class EmailService {
           if (_imapClient != null) {
             try {
               await _imapClient!.idleDone();
-              print('IDLE: Stopped');
+              LoggerService.log('IDLE: Stopped');
             } catch (e) {
-              print('IDLE: idleDone error: $e');
+              LoggerService.log('IDLE: idleDone error: $e');
             }
           }
           
           // Если получили событие, уведомляем
           if (gotEvent) {
-            print('IDLE: Notifying about new message');
+            LoggerService.log('IDLE: Notifying about new message');
             if (_newMessageController != null && !_newMessageController!.isClosed) {
               _newMessageController!.add(null);
             }
             // Небольшая пауза перед перезапуском
             await Future.delayed(const Duration(milliseconds: 500));
           } else {
-            print('IDLE: Timeout reached, restarting');
+            LoggerService.log('IDLE: Timeout reached, restarting');
           }
           
         } catch (e) {
-          print('IDLE error: $e');
+          LoggerService.log('IDLE error: $e');
           _imapClient = null;
           _isIdleActive = false;
           
@@ -130,14 +131,14 @@ class EmailService {
         }
       }
       
-      print('IDLE: Loop ended');
+      LoggerService.log('IDLE: Loop ended');
     });
   }
 
   // Получение новых сообщений
   Future<List<MimeMessage>> fetchNewMessages({int lastSeenUid = 0}) async {
     if (_isFetching) {
-      print('Already fetching, skipping');
+      LoggerService.log('Already fetching, skipping');
       return [];
     }
     
@@ -149,10 +150,10 @@ class EmailService {
         try {
           _isIdleActive = false;
           await _imapClient!.idleDone();
-          print('IDLE stopped for fetch');
+          LoggerService.log('IDLE stopped for fetch');
           await Future.delayed(const Duration(milliseconds: 100));
         } catch (e) {
-          print('idleDone error: $e');
+          LoggerService.log('idleDone error: $e');
         }
       }
       
@@ -200,9 +201,9 @@ class EmailService {
         try {
           await _imapClient!.idleStart();
           _isIdleActive = true;
-          print('IDLE restarted after fetch');
+          LoggerService.log('IDLE restarted after fetch');
         } catch (e) {
-          print('Failed to restart IDLE: $e');
+          LoggerService.log('Failed to restart IDLE: $e');
         }
       }
     }
@@ -214,20 +215,20 @@ class EmailService {
     required String encryptedPayload,
   }) async {
     try {
-      _smtpClient ??= SmtpClient('secure_messenger', isLogEnabled: true);
+      _smtpClient ??= SmtpClient('secure_messenger', isLogEnabled: false);
       
       if (!_smtpClient!.isLoggedIn) {
-        print('SMTP: Connecting to $smtpServer:$smtpPort');
+        LoggerService.log('SMTP: Connecting to $smtpServer:$smtpPort');
         
         // Для порта 587 подключаемся БЕЗ SSL, потом делаем STARTTLS
         await _smtpClient!.connectToServer(smtpServer, smtpPort, isSecure: false);
-        print('SMTP: Connected, sending EHLO');
+        LoggerService.log('SMTP: Connected, sending EHLO');
         
         await _smtpClient!.ehlo();
-        print('SMTP: EHLO done, starting TLS');
+        LoggerService.log('SMTP: EHLO done, starting TLS');
         
         await _smtpClient!.startTls();
-        print('SMTP: TLS started, authenticating');
+        LoggerService.log('SMTP: TLS started, authenticating');
         
         // Используем authenticate вместо login
         if (_smtpClient!.serverInfo.supportsAuth(AuthMechanism.plain)) {
@@ -236,7 +237,7 @@ class EmailService {
           await _smtpClient!.authenticate(email, password, AuthMechanism.login);
         }
         
-        print('SMTP: Authenticated');
+        LoggerService.log('SMTP: Authenticated');
       }
 
       final message = MessageBuilder.buildSimpleTextMessage(
@@ -246,11 +247,11 @@ class EmailService {
         subject: '[chat]',
       );
 
-      print('SMTP: Sending message to $toEmail');
+      LoggerService.log('SMTP: Sending message to $toEmail');
       await _smtpClient!.sendMessage(message);
-      print('SMTP: Message sent successfully');
+      LoggerService.log('SMTP: Message sent successfully');
     } catch (e) {
-      print('SMTP error: $e');
+      LoggerService.log('SMTP error: $e');
       // Если ошибка подключения, сбрасываем клиент для переподключения
       if (e.toString().contains('Connection') || e.toString().contains('Socket') || 
           e.toString().contains('HandshakeException') || e.toString().contains('WRONG_VERSION')) {
