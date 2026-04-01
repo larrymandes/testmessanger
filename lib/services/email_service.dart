@@ -33,11 +33,11 @@ class EmailService {
       _imapClient = ImapClient(isLogEnabled: false);
       await _imapClient!.connectToServer(imapServer, imapPort, isSecure: true);
       await _imapClient!.login(email, password);
-      final selectResult = await _imapClient!.selectInbox();
+      final mailbox = await _imapClient!.selectInbox();
       
-      _lastKnownExists = selectResult.exists;
-      _lastUidNext = selectResult.uidNext ?? 0;
-      _uidValidity = selectResult.uidValidity ?? 0;
+      _lastKnownExists = mailbox.messagesExists;
+      _lastUidNext = mailbox.uidNext ?? 0;
+      _uidValidity = mailbox.uidValidity ?? 0;
       
       LoggerService.log('IMAP: Connected, EXISTS=$_lastKnownExists, UIDNEXT=$_lastUidNext, UIDVALIDITY=$_uidValidity');
     } catch (e) {
@@ -154,19 +154,19 @@ class EmailService {
       if (_imapClient == null) await connectImap();
 
       // Проверяем UIDVALIDITY - если изменился, ящик пересоздан
-      final selectResult = await _imapClient!.selectInbox();
-      final currentUidValidity = selectResult.uidValidity ?? 0;
+      final mailbox = await _imapClient!.selectInbox();
+      final currentUidValidity = mailbox.uidValidity ?? 0;
       
       if (_uidValidity != 0 && currentUidValidity != _uidValidity) {
         LoggerService.log('UIDVALIDITY changed! Mailbox was recreated. Resetting.');
         _uidValidity = currentUidValidity;
-        _lastUidNext = selectResult.uidNext ?? 0;
+        _lastUidNext = mailbox.uidNext ?? 0;
         // Нужно пересинхронизировать всё, но пока просто сбрасываем
         return [];
       }
       
       _uidValidity = currentUidValidity;
-      final currentUidNext = selectResult.uidNext ?? 0;
+      final currentUidNext = mailbox.uidNext ?? 0;
       
       // Если UIDNEXT не изменился - новых писем нет
       if (currentUidNext <= _lastUidNext) {
@@ -190,24 +190,31 @@ class EmailService {
           
           LoggerService.log('Batch: UID $batchStart:$batchEnd');
           
-          final fetchResult = await _imapClient!.uidFetch(
-            MessageSequence.fromRange(batchStart, batchEnd),
-            '(UID BODY.PEEK[] BODY.PEEK[HEADER.FIELDS (FROM SUBJECT MESSAGE-ID)])',
-          );
-          
-          messages.addAll(_filterChatMessages(fetchResult.messages, lastSeenUid));
+          // Используем uidSearch + fetchMessages для батча
+          final uids = await _imapClient!.uidSearch('UID $batchStart:$batchEnd');
+          if (uids.isNotEmpty) {
+            final fetchResult = await _imapClient!.fetchMessages(
+              uids,
+              'BODY.PEEK[]',
+            );
+            
+            messages.addAll(_filterChatMessages(fetchResult.messages, lastSeenUid));
+          }
           
           // Пауза между батчами
           await Future.delayed(const Duration(milliseconds: 100));
         }
       } else {
         // Обычный fetch если писем мало
-        final fetchResult = await _imapClient!.uidFetch(
-          MessageSequence.fromRangeToLast(startUid),
-          '(UID BODY.PEEK[] BODY.PEEK[HEADER.FIELDS (FROM SUBJECT MESSAGE-ID)])',
-        );
-        
-        messages.addAll(_filterChatMessages(fetchResult.messages, lastSeenUid));
+        final uids = await _imapClient!.uidSearch('UID $startUid:*');
+        if (uids.isNotEmpty) {
+          final fetchResult = await _imapClient!.fetchMessages(
+            uids,
+            'BODY.PEEK[]',
+          );
+          
+          messages.addAll(_filterChatMessages(fetchResult.messages, lastSeenUid));
+        }
       }
       
       // Обновляем UIDNEXT
@@ -316,9 +323,10 @@ class EmailService {
         LoggerService.log('SMTP: BCC to self enabled');
       }
       
-      // Добавляем Message-ID вручную
+      // Добавляем Message-ID через setHeader
+      builder.setHeader('Message-ID', messageId);
+
       final message = builder.buildMimeMessage();
-      message.headers['message-id'] = messageId;
 
       LoggerService.log('SMTP: Sending (Message-ID: $messageId)');
       await client.sendMessage(message);
