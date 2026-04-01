@@ -172,6 +172,9 @@ class _ChatScreenState extends State<ChatScreen> {
         metadata: null,
       );
       _chatController.updateMessage(chatMessage, updatedMessage);
+      
+      // Перезагружаем сообщения из БД чтобы синхронизировать
+      await _loadMessages();
     } catch (e) {
       print('Send error: $e');
       

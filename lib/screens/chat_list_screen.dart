@@ -296,7 +296,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
     LoggerService.log('Contact $contactEmail saved successfully');
     
     if (mounted) {
+      // Перезагружаем контакты
       await _loadContacts();
+      
+      // Обновляем UI
+      setState(() {});
       
       // Показываем уведомление
       ScaffoldMessenger.of(context).showSnackBar(
@@ -333,7 +337,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
     LoggerService.log('Message saved');
     
     if (mounted) {
+      // Перезагружаем контакты
       await _loadContacts();
+      
+      // Обновляем UI
+      setState(() {});
     }
   }
 
