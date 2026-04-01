@@ -59,13 +59,37 @@ class EmailService {
           await connectImap();
         }
 
-        // Запускаем IDLE (блокируется до получения уведомления или 29 минут)
-        final idleResult = await _imapClient!.idleStart();
+        // Проверяем поддержку IDLE
+        if (!_imapClient!.serverInfo.supportsIdle) {
+          print('ERROR: Server does not support IDLE');
+          throw Exception('IMAP IDLE not supported by server');
+        }
+
+        // Запускаем IDLE
+        await _imapClient!.idleStart();
+        print('IDLE started, waiting for events...');
         
-        // Ждём события
-        await for (final event in idleResult.eventStream) {
-          if (event is ImapExpungeEvent || event is ImapFetchEvent || event is ImapVanishedEvent) {
-            // Новое письмо или изменение
+        // Ждём 28 минут (чтобы успеть перезапустить до таймаута сервера)
+        bool gotEvent = false;
+        final startTime = DateTime.now();
+        
+        // Слушаем события через eventBus
+        StreamSubscription<ImapEvent>? subscription;
+        if (_imapClient!.eventBus != null) {
+          subscription = _imapClient!.eventBus!.on<ImapEvent>().listen((event) {
+            if (event is ImapExpungeEvent || event is ImapFetchEvent || event is ImapVanishedEvent) {
+              gotEvent = true;
+              print('IDLE: got event ${event.runtimeType}');
+            }
+          });
+        }
+        
+        // Ждём события или 28 минут
+        while (_isIdleActive && DateTime.now().difference(startTime).inMinutes < 28) {
+          await Future.delayed(const Duration(seconds: 1));
+          
+          if (gotEvent) {
+            print('IDLE: new message detected');
             if (_newMessageController != null && !_newMessageController!.isClosed) {
               _newMessageController!.add(null);
             }
@@ -74,7 +98,9 @@ class EmailService {
         }
         
         // Останавливаем IDLE
+        await subscription?.cancel();
         await _imapClient!.idleDone();
+        print('IDLE stopped, restarting...');
         
       } catch (e) {
         print('IDLE error: $e');
