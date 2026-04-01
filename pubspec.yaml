@@ -18,7 +18,7 @@ dependencies:
   
   # Crypto
   cryptography: ^2.7.0
-  pointycastle: ^3.9.1
+  pointycastle: ^4.0.0
   
   # Storage
   sqflite: ^2.3.3
