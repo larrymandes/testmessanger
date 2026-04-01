@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:pointycastle/export.dart';
 import '../services/email_service.dart';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
-import 'package:cryptography/cryptography.dart';
 import 'dart:convert';
 import 'chat_screen.dart';
 import 'qr_screen.dart';
@@ -26,7 +26,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   late EmailService _emailService;
   final Map<String, Map<String, dynamic>> _chats = {};
   bool _isLoading = true;
-  SimpleKeyPair? _myKeyPair;
+  AsymmetricKeyPair<PublicKey, PrivateKey>? _myKeyPair;
   String? _myPublicKeyHex;
 
   @override
@@ -78,14 +78,16 @@ class _ChatListScreenState extends State<ChatListScreen> {
     
     if (account != null) {
       // Загружаем существующие ключи
-      _myKeyPair = await CryptoService.importPrivateKey(account['privateKey']!);
+      final privateKey = CryptoService.importPrivateKey(account['privateKey']!);
+      final publicKey = CryptoService.importPublicKey(account['publicKey']!);
+      _myKeyPair = AsymmetricKeyPair<PublicKey, PrivateKey>(publicKey, privateKey);
       _myPublicKeyHex = account['publicKey']!;
     } else {
       // Генерируем новые ключи
       _myKeyPair = await CryptoService.generateKeyPair();
-      _myPublicKeyHex = await CryptoService.exportPublicKey(_myKeyPair!);
+      _myPublicKeyHex = CryptoService.exportPublicKey(_myKeyPair!);
       
-      final privateKeyHex = await CryptoService.exportPrivateKey(_myKeyPair!);
+      final privateKeyHex = CryptoService.exportPrivateKey(_myKeyPair!);
       
       await StorageService.saveAccount(
         email: widget.email,

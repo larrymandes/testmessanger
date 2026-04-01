@@ -43,7 +43,7 @@ class EmailService {
         );
         
         if (searchResult?.matchingSequence != null && 
-            searchResult!.matchingSequence!.isNotEmpty()) {
+            searchResult!.matchingSequence!.isNotEmpty) {
           _newMessageController?.add(null);
         }
       } catch (e) {

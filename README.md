@@ -18,9 +18,12 @@
 
 Самый простой способ - использовать GitHub Actions для автоматической сборки:
 
-1. Загрузи код на GitHub: запусти `UPLOAD_TO_GITHUB.bat`
+1. Загрузи код на GitHub: запусти `ЗАГРУЗИТЬ_НА_GITHUB.bat`
 2. Иди на https://github.com/larrymandes/testmessanger/actions
-3. Скачай готовые приложения из Artifacts
+3. Скачай готовые приложения из Artifacts:
+   - **Windows**: .exe (работает сразу)
+   - **Android**: .apk (работает сразу)
+   - **iOS**: .ipa без подписи (нужен AltStore - смотри `КАК_УСТАНОВИТЬ_iOS.txt`)
 
 Для локальной разработки смотри [SETUP.md](SETUP.md)
 

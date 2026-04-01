@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
-import 'package:cryptography/cryptography.dart';
+import 'package:pointycastle/export.dart';
 import 'dart:convert';
 import 'dart:math';
 import '../services/email_service.dart';
@@ -12,7 +12,7 @@ class ChatScreen extends StatefulWidget {
   final String contactEmail;
   final String contactPublicKey;
   final String myEmail;
-  final SimpleKeyPair myKeyPair;
+  final AsymmetricKeyPair<PublicKey, PrivateKey> myKeyPair;
   final String myPublicKeyHex;
   final EmailService emailService;
 

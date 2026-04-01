@@ -16,8 +16,7 @@ dependencies:
   # Email protocols
   enough_mail: ^2.1.7
   
-  # Crypto
-  cryptography: ^2.7.0
+  # Crypto - только pointycastle
   pointycastle: ^4.0.0
   
   # Storage
