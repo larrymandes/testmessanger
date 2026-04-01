@@ -196,12 +196,17 @@ class _ChatListScreenState extends State<ChatListScreen> {
       
       LoggerService.log('Processing UID=$uid from $from');
       
+      // Логируем что пришло
+      LoggerService.log('Body preview: ${body.substring(0, body.length > 100 ? 100 : body.length)}...');
+      
       // Парсим JSON
       Map<String, dynamic> encrypted;
       try {
         encrypted = jsonDecode(body) as Map<String, dynamic>;
+        LoggerService.log('Body is valid JSON');
       } catch (e) {
-        LoggerService.log('Not JSON, skipping');
+        LoggerService.log('Not JSON, error: $e');
+        LoggerService.log('Full body: $body');
         await StorageService.addProcessedUID(widget.email, uid);
         if (messageId.isNotEmpty) {
           await StorageService.addProcessedMessageId(widget.email, messageId);

@@ -289,27 +289,27 @@ class EmailService {
   Future<String> sendMessage({
     required String toEmail,
     required String encryptedPayload,
-    bool bccToSelf = true, // BCC to self для мульти-девайс (как Delta Chat)
+    bool bccToSelf = true,
   }) async {
+    // КРИТИЧНО: Каждый раз создаём ПОЛНОСТЬЮ НОВОЕ соединение
     SmtpClient? client;
     
     try {
-      LoggerService.log('SMTP: Creating new client for $toEmail');
+      final uniqueId = DateTime.now().millisecondsSinceEpoch;
+      LoggerService.log('SMTP[$uniqueId]: Creating new client for $toEmail');
       
-      // ВАЖНО: Создаём НОВЫЙ клиент для КАЖДОЙ отправки
-      client = SmtpClient('secure_messenger_${DateTime.now().millisecondsSinceEpoch}', isLogEnabled: false);
+      client = SmtpClient('msg_$uniqueId', isLogEnabled: false);
       
-      LoggerService.log('SMTP: Connecting to $smtpServer:$smtpPort');
-      
+      LoggerService.log('SMTP[$uniqueId]: Connecting to $smtpServer:$smtpPort');
       await client.connectToServer(smtpServer, smtpPort, isSecure: false);
       
-      LoggerService.log('SMTP: Connected, sending EHLO');
+      LoggerService.log('SMTP[$uniqueId]: Sending EHLO');
       await client.ehlo();
       
-      LoggerService.log('SMTP: Starting TLS');
+      LoggerService.log('SMTP[$uniqueId]: Starting TLS');
       await client.startTls();
       
-      LoggerService.log('SMTP: Authenticating');
+      LoggerService.log('SMTP[$uniqueId]: Authenticating as $email');
       if (client.serverInfo.supportsAuth(AuthMechanism.plain)) {
         await client.authenticate(email, password, AuthMechanism.plain);
       } else if (client.serverInfo.supportsAuth(AuthMechanism.login)) {
@@ -318,14 +318,14 @@ class EmailService {
         throw Exception('No supported auth mechanism');
       }
       
-      LoggerService.log('SMTP: Authenticated');
+      LoggerService.log('SMTP[$uniqueId]: Authenticated successfully');
 
-      // Создаём уникальный Message-ID (как Delta Chat)
+      // Создаём уникальный Message-ID
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final random = DateTime.now().microsecond;
       final messageId = '<$timestamp.$random@${email.split('@')[1]}>';
       
-      LoggerService.log('Message will be sent with Message-ID: $messageId');
+      LoggerService.log('SMTP[$uniqueId]: Message-ID: $messageId');
       
       final builder = MessageBuilder()
         ..from = [MailAddress('', email)]
@@ -333,38 +333,34 @@ class EmailService {
         ..subject = '[chat]'
         ..text = encryptedPayload;
       
-      // BCC to self для синхронизации между устройствами (как Delta Chat)
       if (bccToSelf) {
         builder.bcc = [MailAddress('', email)];
-        LoggerService.log('SMTP: BCC to self enabled');
+        LoggerService.log('SMTP[$uniqueId]: BCC to self enabled');
       }
       
-      // Добавляем Message-ID через setHeader
       builder.setHeader('Message-ID', messageId);
-
       final message = builder.buildMimeMessage();
 
-      LoggerService.log('SMTP: Sending message to $toEmail...');
+      LoggerService.log('SMTP[$uniqueId]: Sending message...');
       await client.sendMessage(message);
-      LoggerService.log('SMTP: Message sent successfully');
+      LoggerService.log('SMTP[$uniqueId]: Message sent successfully');
       
-      LoggerService.log('SMTP: Closing connection');
+      LoggerService.log('SMTP[$uniqueId]: Closing connection');
       await client.quit();
+      LoggerService.log('SMTP[$uniqueId]: Connection closed');
       
-      // Возвращаем Message-ID для сохранения в БД
       return messageId;
       
-    } catch (e) {
+    } catch (e, stackTrace) {
       LoggerService.log('SMTP error: $e');
+      LoggerService.log('Stack trace: $stackTrace');
       rethrow;
     } finally {
-      // Гарантируем закрытие соединения
       if (client != null) {
         try {
-          await client.quit();
-          LoggerService.log('SMTP: Connection closed in finally');
+          await client.disconnect();
         } catch (e) {
-          LoggerService.log('SMTP: Error closing connection: $e');
+          // Ignore
         }
       }
     }
