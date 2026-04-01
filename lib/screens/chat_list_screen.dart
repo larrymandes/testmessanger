@@ -156,23 +156,48 @@ class _ChatListScreenState extends State<ChatListScreen> {
       final body = mimeMessage.decodeTextPlainPart() ?? '';
       final uid = mimeMessage.uid ?? 0;
       
+      print('Processing message from $from, UID: $uid');
+      print('Body length: ${body.length}');
+      
       // Проверяем не обработано ли уже
       if (await StorageService.isUIDProcessed(widget.email, uid)) {
+        print('UID $uid already processed, skipping');
         return;
       }
       
       // Парсим зашифрованный payload
-      final encrypted = jsonDecode(body) as Map<String, dynamic>;
+      Map<String, dynamic> encrypted;
+      try {
+        encrypted = jsonDecode(body) as Map<String, dynamic>;
+        print('Encrypted payload keys: ${encrypted.keys.join(", ")}');
+      } catch (e) {
+        print('Failed to parse JSON: $e');
+        await StorageService.addProcessedUID(widget.email, uid);
+        return;
+      }
       
       // Расшифровываем
-      final plaintext = await CryptoService.decryptMessage(
-        encrypted: encrypted.map((k, v) => MapEntry(k, v.toString())),
-        myKeyPair: _myKeyPair!,
-      );
+      String plaintext;
+      try {
+        plaintext = await CryptoService.decryptMessage(
+          encrypted: encrypted.map((k, v) => MapEntry(k, v.toString())),
+          myKeyPair: _myKeyPair!,
+        );
+        print('Decrypted successfully: ${plaintext.substring(0, plaintext.length > 50 ? 50 : plaintext.length)}...');
+      } catch (e) {
+        print('Decryption failed: $e');
+        // Помечаем как обработанное чтобы не пытаться снова
+        await StorageService.addProcessedUID(widget.email, uid);
+        if (mounted) {
+          _showErrorWithCopy('Не удалось расшифровать сообщение от $from', e.toString());
+        }
+        return;
+      }
       
       // Парсим содержимое
       try {
         final parsed = jsonDecode(plaintext);
+        print('Message type: ${parsed['type'] ?? 'text'}');
         
         // Обработка приглашения
         if (parsed['type'] == 'invite') {
@@ -188,6 +213,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         }
       } catch (e) {
         // Старый формат без JSON
+        print('Not JSON, treating as plain text');
         await _handleTextMessage({'text': plaintext, 'uid': uid.toString()}, from, uid);
       }
       
