@@ -9,6 +9,7 @@ class EmailService {
   final int imapPort;
   final String smtpServer;
   final int smtpPort;
+  final bool smtpUseTls; // Использовать TLS сразу (465) или STARTTLS (587)
 
   ImapClient? _imapClient;
   StreamController<void>? _newMessageController;
@@ -24,7 +25,8 @@ class EmailService {
     this.imapServer = 'imap.mail.ru',
     this.imapPort = 993,
     this.smtpServer = 'smtp.mail.ru',
-    this.smtpPort = 587,
+    this.smtpPort = 465, // Используем 465 (TLS) вместо 587 (STARTTLS)
+    this.smtpUseTls = true, // TLS сразу, без STARTTLS
   });
 
   // Подключение к IMAP
@@ -305,9 +307,9 @@ class EmailService {
       LoggerService.log('SMTP [1/9]: ✓ Client created');
       
       // 2. Подключение
-      LoggerService.log('SMTP [2/9]: Connecting to $smtpServer:$smtpPort (TLS: false)');
+      LoggerService.log('SMTP [2/9]: Connecting to $smtpServer:$smtpPort (TLS: $smtpUseTls)');
       try {
-        await client.connectToServer(smtpServer, smtpPort, isSecure: false);
+        await client.connectToServer(smtpServer, smtpPort, isSecure: smtpUseTls);
         LoggerService.log('SMTP [2/9]: ✓ Connected');
       } catch (e) {
         LoggerService.log('SMTP [2/9]: ✗ Connection failed: $e');
@@ -326,14 +328,18 @@ class EmailService {
         rethrow;
       }
       
-      // 4. STARTTLS
-      LoggerService.log('SMTP [4/9]: Starting TLS upgrade');
-      try {
-        await client.startTls();
-        LoggerService.log('SMTP [4/9]: ✓ TLS established');
-      } catch (e) {
-        LoggerService.log('SMTP [4/9]: ✗ STARTTLS failed: $e');
-        rethrow;
+      // 4. STARTTLS (только если не используем TLS сразу)
+      if (!smtpUseTls) {
+        LoggerService.log('SMTP [4/9]: Starting TLS upgrade');
+        try {
+          await client.startTls();
+          LoggerService.log('SMTP [4/9]: ✓ TLS established');
+        } catch (e) {
+          LoggerService.log('SMTP [4/9]: ✗ STARTTLS failed: $e');
+          rethrow;
+        }
+      } else {
+        LoggerService.log('SMTP [4/9]: Skipping STARTTLS (already using TLS)');
       }
       
       // 5. Аутентификация
