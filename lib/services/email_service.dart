@@ -20,7 +20,7 @@ class EmailService {
   int _uidValidity = 0; // Для проверки что ящик не пересоздан
   
   // Callback для уведомления о новых сообщениях (вызывается из IDLE)
-  Function()? _onNewMessageCallback;
+  final List<Function()> _callbacks = []; // Список всех callback'ов
   bool _callbackPending = false; // Флаг что callback уже вызван, ждём завершения fetch
 
   EmailService({
@@ -57,7 +57,16 @@ class EmailService {
 
   // Устанавливаем callback для уведомлений о новых сообщениях
   void setNewMessageCallback(Function() callback) {
-    _onNewMessageCallback = callback;
+    if (!_callbacks.contains(callback)) {
+      _callbacks.add(callback);
+      LoggerService.log('EmailService: Callback registered (total: ${_callbacks.length})');
+    }
+  }
+  
+  // Удаляем callback
+  void removeNewMessageCallback(Function() callback) {
+    _callbacks.remove(callback);
+    LoggerService.log('EmailService: Callback removed (total: ${_callbacks.length})');
   }
 
   // Фоновый fetch loop (как Delta Chat) - работает независимо от UI
@@ -73,9 +82,13 @@ class EmailService {
         if (newMessages.isNotEmpty) {
           LoggerService.log('Background fetch: Found ${newMessages.length} new messages');
           
-          // Уведомляем через callback (ТОЛЬКО ОДИН РАЗ)
-          if (_onNewMessageCallback != null) {
-            _onNewMessageCallback!();
+          // Уведомляем через все callbacks
+          for (final callback in _callbacks) {
+            try {
+              callback();
+            } catch (e) {
+              LoggerService.log('Background fetch: Callback error: $e');
+            }
           }
         }
       } catch (e) {
@@ -170,15 +183,26 @@ class EmailService {
         // Уведомляем через callback ТОЛЬКО если не ждём предыдущий
         if (!_callbackPending) {
           try {
-            if (_onNewMessageCallback != null) {
-              LoggerService.log('IDLE: Calling callback');
+            if (_callbacks.isNotEmpty) {
+              LoggerService.log('IDLE: Calling ${_callbacks.length} callbacks');
               _callbackPending = true; // Блокируем повторные вызовы
-              _onNewMessageCallback!();
+              
+              // Вызываем ВСЕ зарегистрированные callback'и
+              for (int i = 0; i < _callbacks.length; i++) {
+                try {
+                  LoggerService.log('IDLE: Calling callback #${i + 1}...');
+                  _callbacks[i]();
+                  LoggerService.log('IDLE: Callback #${i + 1} completed');
+                } catch (e) {
+                  LoggerService.log('IDLE: Callback #${i + 1} error: $e');
+                }
+              }
+              LoggerService.log('IDLE: All callbacks completed!');
             } else {
-              LoggerService.log('IDLE: WARNING - No callback set!');
+              LoggerService.log('IDLE: WARNING - No callbacks registered!');
             }
           } catch (e) {
-            LoggerService.log('IDLE: Callback error: $e');
+            LoggerService.log('IDLE: Callbacks error: $e');
             _callbackPending = false;
           }
         } else {

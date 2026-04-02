@@ -33,34 +33,53 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _chatController = InMemoryChatController();
+  late Function() _messageCallback; // Сохраняем ссылку на callback
 
   @override
   void initState() {
     super.initState();
+    LoggerService.log('ChatScreen: initState for ${widget.contactEmail}');
     _loadMessages();
     _sendReadReceipts();
     
-    // Слушаем новые сообщения - обновляем чат
-    widget.emailService.listenForNewMessages().listen((_) async {
-      await _loadMessages();
-      await _sendReadReceipts();
-    });
+    // Создаём callback и регистрируем
+    _messageCallback = () {
+      LoggerService.log('ChatScreen: Callback triggered for ${widget.contactEmail}!');
+      if (mounted) {
+        LoggerService.log('ChatScreen: Loading messages...');
+        _loadMessages();
+        _sendReadReceipts();
+      } else {
+        LoggerService.log('ChatScreen: NOT mounted, skipping');
+      }
+    };
+    
+    widget.emailService.setNewMessageCallback(_messageCallback);
+    LoggerService.log('ChatScreen: Callback registered');
   }
 
   Future<void> _loadMessages() async {
+    LoggerService.log('ChatScreen: _loadMessages() called');
     final messages = await StorageService.getMessages(
       widget.myEmail,
       widget.contactEmail,
     );
+    LoggerService.log('ChatScreen: Loaded ${messages.length} messages from DB');
 
     // Сортируем по timestamp (новые внизу для чата)
     messages.sort((a, b) => a['timestamp'].compareTo(b['timestamp']));
     
     final chatMessages = messages.map((msg) => _createMessage(msg)).toList();
-    _chatController.setMessages(chatMessages);
+    LoggerService.log('ChatScreen: Created ${chatMessages.length} chat messages');
     
     if (mounted) {
-      setState(() {});
+      LoggerService.log('ChatScreen: Calling setState to update UI');
+      setState(() {
+        _chatController.setMessages(chatMessages);
+      });
+      LoggerService.log('ChatScreen: UI updated!');
+    } else {
+      LoggerService.log('ChatScreen: NOT mounted, cannot update UI');
     }
   }
 
@@ -117,7 +136,7 @@ class _ChatScreenState extends State<ChatScreen> {
         encryptedPayload: jsonEncode(encrypted),
       );
     } catch (e) {
-      print('Send read receipt error: $e');
+      LoggerService.log('Send read receipt error: $e');
     }
   }
 
@@ -182,7 +201,7 @@ class _ChatScreenState extends State<ChatScreen> {
       // Перезагружаем сообщения из БД чтобы синхронизировать
       await _loadMessages();
     } catch (e) {
-      print('Send error: $e');
+      LoggerService.log('Send error: $e');
       
       // Обновляем статус на "ошибка"
       final updatedMessage = chatMessage.copyWith(
@@ -266,6 +285,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    LoggerService.log('ChatScreen: dispose() - removing callback');
+    // Удаляем callback при закрытии
+    widget.emailService.removeNewMessageCallback(_messageCallback);
     _chatController.dispose();
     super.dispose();
   }

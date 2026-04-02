@@ -62,8 +62,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
       // Устанавливаем callback ДО подключения (чтобы не пропустить события)
       _emailService.setNewMessageCallback(() {
         // Вызывается мгновенно при IDLE событии
+        LoggerService.log('ChatListScreen: Callback triggered!');
         if (mounted) {
+          LoggerService.log('ChatListScreen: Fetching new messages...');
           _fetchNewMessages();
+        } else {
+          LoggerService.log('ChatListScreen: NOT mounted, skipping');
         }
       });
       
