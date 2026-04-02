@@ -168,9 +168,25 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Future<void> _processMessage(dynamic mimeMessage) async {
     try {
       final from = mimeMessage.from?.first?.email ?? '';
-      final body = mimeMessage.decodeTextPlainPart() ?? '';
       final uid = mimeMessage.uid ?? 0;
       final messageId = mimeMessage.decodeHeaderValue('message-id') ?? '';
+      
+      // ВАЖНО: Получаем RAW body без декодирования переносов строк
+      String body = '';
+      
+      // Пробуем получить text/plain часть
+      final textPlainPart = mimeMessage.getPartWithMediaSubtype(MediaSubtype.textPlain);
+      if (textPlainPart != null) {
+        body = textPlainPart.decodeContentText() ?? '';
+      } else {
+        // Fallback на decodeTextPlainPart
+        body = mimeMessage.decodeTextPlainPart() ?? '';
+      }
+      
+      // Убираем все переносы строк и пробелы из JSON
+      body = body.replaceAll(RegExp(r'\s+'), '');
+      
+      LoggerService.log('Body length: ${body.length}');
       
       // Пропускаем битые
       if (uid == 0) {
@@ -196,9 +212,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
       
       LoggerService.log('Processing UID=$uid from $from');
       
-      // Логируем что пришло
-      LoggerService.log('Body preview: ${body.substring(0, body.length > 100 ? 100 : body.length)}...');
-      
       // Парсим JSON
       Map<String, dynamic> encrypted;
       try {
@@ -206,7 +219,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
         LoggerService.log('Body is valid JSON');
       } catch (e) {
         LoggerService.log('Not JSON, error: $e');
-        LoggerService.log('Full body: $body');
         await StorageService.addProcessedUID(widget.email, uid);
         if (messageId.isNotEmpty) {
           await StorageService.addProcessedMessageId(widget.email, messageId);

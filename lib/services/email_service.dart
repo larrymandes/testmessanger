@@ -291,41 +291,38 @@ class EmailService {
     required String encryptedPayload,
     bool bccToSelf = true,
   }) async {
-    // КРИТИЧНО: Каждый раз создаём ПОЛНОСТЬЮ НОВОЕ соединение
+    final uniqueId = DateTime.now().microsecondsSinceEpoch;
     SmtpClient? client;
     
     try {
-      final uniqueId = DateTime.now().millisecondsSinceEpoch;
-      LoggerService.log('SMTP[$uniqueId]: Creating new client for $toEmail');
+      LoggerService.log('SMTP[$uniqueId]: Creating client');
       
+      // Создаём ПОЛНОСТЬЮ новый клиент с уникальным именем
       client = SmtpClient('msg_$uniqueId', isLogEnabled: false);
       
-      LoggerService.log('SMTP[$uniqueId]: Connecting to $smtpServer:$smtpPort');
+      LoggerService.log('SMTP[$uniqueId]: Connecting');
       await client.connectToServer(smtpServer, smtpPort, isSecure: false);
       
-      LoggerService.log('SMTP[$uniqueId]: Sending EHLO');
+      LoggerService.log('SMTP[$uniqueId]: EHLO');
       await client.ehlo();
       
-      LoggerService.log('SMTP[$uniqueId]: Starting TLS');
+      LoggerService.log('SMTP[$uniqueId]: STARTTLS');
       await client.startTls();
       
-      LoggerService.log('SMTP[$uniqueId]: Authenticating as $email');
+      LoggerService.log('SMTP[$uniqueId]: AUTH');
       if (client.serverInfo.supportsAuth(AuthMechanism.plain)) {
         await client.authenticate(email, password, AuthMechanism.plain);
       } else if (client.serverInfo.supportsAuth(AuthMechanism.login)) {
         await client.authenticate(email, password, AuthMechanism.login);
       } else {
-        throw Exception('No supported auth mechanism');
+        throw Exception('No auth');
       }
       
-      LoggerService.log('SMTP[$uniqueId]: Authenticated successfully');
+      LoggerService.log('SMTP[$uniqueId]: Authenticated');
 
-      // Создаём уникальный Message-ID
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final random = DateTime.now().microsecond;
       final messageId = '<$timestamp.$random@${email.split('@')[1]}>';
-      
-      LoggerService.log('SMTP[$uniqueId]: Message-ID: $messageId');
       
       final builder = MessageBuilder()
         ..from = [MailAddress('', email)]
@@ -335,33 +332,28 @@ class EmailService {
       
       if (bccToSelf) {
         builder.bcc = [MailAddress('', email)];
-        LoggerService.log('SMTP[$uniqueId]: BCC to self enabled');
       }
       
       builder.setHeader('Message-ID', messageId);
       final message = builder.buildMimeMessage();
 
-      LoggerService.log('SMTP[$uniqueId]: Sending message...');
+      LoggerService.log('SMTP[$uniqueId]: Sending');
       await client.sendMessage(message);
-      LoggerService.log('SMTP[$uniqueId]: Message sent successfully');
+      LoggerService.log('SMTP[$uniqueId]: Sent');
       
-      LoggerService.log('SMTP[$uniqueId]: Closing connection');
       await client.quit();
-      LoggerService.log('SMTP[$uniqueId]: Connection closed');
+      LoggerService.log('SMTP[$uniqueId]: Closed');
       
       return messageId;
       
-    } catch (e, stackTrace) {
-      LoggerService.log('SMTP error: $e');
-      LoggerService.log('Stack trace: $stackTrace');
+    } catch (e, stack) {
+      LoggerService.log('SMTP[$uniqueId] ERROR: $e');
       rethrow;
     } finally {
       if (client != null) {
         try {
           await client.disconnect();
-        } catch (e) {
-          // Ignore
-        }
+        } catch (_) {}
       }
     }
   }
