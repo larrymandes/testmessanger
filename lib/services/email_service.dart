@@ -183,10 +183,12 @@ class EmailService {
         
         // Останавливаем IDLE
         try {
+          final stopwatch = Stopwatch()..start();
           await _imapClient!.idleDone();
           // NOOP для проверки соединения (как Delta Chat)
           await _imapClient!.noop();
-          LoggerService.log('IDLE: Done + NOOP ok');
+          stopwatch.stop();
+          LoggerService.log('IDLE: Done + NOOP ok (${stopwatch.elapsedMilliseconds}ms)');
         } catch (e) {
           LoggerService.log('IDLE: Done/NOOP error: $e');
           _imapClient = null;
@@ -251,6 +253,7 @@ class EmailService {
     }
     
     _isFetching = true;
+    final fetchStopwatch = Stopwatch()..start();
     
     try {
       if (_imapClient == null) {
@@ -315,6 +318,7 @@ class EmailService {
         // Обычный fetch если писем мало
         // КАК DELTA CHAT: Fetch только НОВЫЕ письма (startUid до currentUidNext-1)
         final endUid = currentUidNext - 1;
+        final uidFetchStopwatch = Stopwatch()..start();
         LoggerService.log('Starting UID FETCH of message set "$startUid:$endUid"');
         
         // Используем MessageSequence для конкретного диапазона (НЕ до конца!)
@@ -324,14 +328,16 @@ class EmailService {
           'BODY.PEEK[]',
         );
         
-        LoggerService.log('Successfully received ${fetchResult.messages.length} messages.');
+        uidFetchStopwatch.stop();
+        LoggerService.log('Successfully received ${fetchResult.messages.length} messages in ${uidFetchStopwatch.elapsedMilliseconds}ms.');
         messages.addAll(_filterChatMessages(fetchResult.messages, lastSeenUid));
       }
       
       // Обновляем UIDNEXT
       _lastUidNext = currentUidNext;
       
-      LoggerService.log('${messages.length} mails read from "INBOX".');
+      fetchStopwatch.stop();
+      LoggerService.log('${messages.length} mails read from "INBOX" in ${fetchStopwatch.elapsedMilliseconds}ms.');
       LoggerService.log('Fetched ${messages.length} new chat messages');
       
       // Сбрасываем флаг pending - fetch завершён
