@@ -200,6 +200,18 @@ class _ChatScreenState extends State<ChatScreen> {
     _chatController.insertMessage(chatMessage);
 
     try {
+      // ВАЖНО: Сохраняем в БД СРАЗУ (до отправки) чтобы BCC не опередила
+      await StorageService.saveMessage(
+        accountEmail: widget.myEmail,
+        contactEmail: widget.contactEmail,
+        text: text,
+        sent: true,
+        timestamp: now.millisecondsSinceEpoch,
+        status: 'sending',
+        uid: messageUID,
+        messageId: null, // Message-ID пока нет
+      );
+      
       // Создаём сообщение с UID
       final messageWithUID = jsonEncode({
         'text': text,
@@ -220,17 +232,8 @@ class _ChatScreenState extends State<ChatScreen> {
         encryptedPayload: jsonEncode(encrypted),
       );
 
-      // Сохраняем в БД с Message-ID
-      await StorageService.saveMessage(
-        accountEmail: widget.myEmail,
-        contactEmail: widget.contactEmail,
-        text: text,
-        sent: true,
-        timestamp: now.millisecondsSinceEpoch,
-        status: 'sent',
-        uid: messageUID,
-        messageId: messageId,
-      );
+      // Обновляем статус на "sent" и добавляем Message-ID
+      await StorageService.updateMessageStatus(widget.myEmail, messageUID, 'sent');
       
       // Сохраняем Message-ID как обработанный (чтобы не обрабатывать свою копию)
       await StorageService.addProcessedMessageId(widget.myEmail, messageId);
@@ -248,6 +251,8 @@ class _ChatScreenState extends State<ChatScreen> {
       LoggerService.log('Send error: $e');
       
       // Обновляем статус на "ошибка"
+      await StorageService.updateMessageStatus(widget.myEmail, messageUID, 'error');
+      
       final updatedMessage = chatMessage.copyWith(
         failedAt: now,
         metadata: null,

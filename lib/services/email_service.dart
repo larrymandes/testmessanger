@@ -210,11 +210,11 @@ class EmailService {
               LoggerService.log('IDLE: Calling ${_callbacks.length} callbacks');
               _callbackPending = true; // Блокируем повторные вызовы
               
-              // Вызываем ВСЕ зарегистрированные callback'и
+              // Вызываем ВСЕ зарегистрированные callback'и ПОСЛЕДОВАТЕЛЬНО
               for (int i = 0; i < _callbacks.length; i++) {
                 try {
                   LoggerService.log('IDLE: Calling callback #${i + 1}...');
-                  _callbacks[i]();
+                  await _callbacks[i](); // ВАЖНО: await чтобы ждать завершения!
                   LoggerService.log('IDLE: Callback #${i + 1} completed');
                 } catch (e) {
                   LoggerService.log('IDLE: Callback #${i + 1} error: $e');

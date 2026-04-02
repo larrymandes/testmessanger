@@ -86,12 +86,12 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
       setState(() => _connectionStatus = 'Подключение...');
       
       // Устанавливаем callback ДО подключения (чтобы не пропустить события)
-      _emailService.setNewMessageCallback(() {
+      _emailService.setNewMessageCallback(() async {
         // Вызывается мгновенно при IDLE событии
         LoggerService.log('ChatListScreen: Callback triggered!');
         if (mounted) {
           LoggerService.log('ChatListScreen: Fetching new messages...');
-          _fetchNewMessages();
+          await _fetchNewMessages(); // ВАЖНО: await чтобы дождаться обработки!
         } else {
           LoggerService.log('ChatListScreen: NOT mounted, skipping');
         }
