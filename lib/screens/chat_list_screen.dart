@@ -216,6 +216,17 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
       // Пропускаем битые
       if (uid == 0) return;
       
+      // ВАЖНО: Пропускаем BCC копии своих сообщений (они уже в БД)
+      if (from == widget.email) {
+        LoggerService.log('UID=$uid: BCC copy from myself, skipping');
+        await StorageService.addProcessedUID(widget.email, uid);
+        if (messageId.isNotEmpty) {
+          await StorageService.addProcessedMessageId(widget.email, messageId);
+        }
+        await _emailService.markMessageAsSeen(uid);
+        return;
+      }
+      
       // ВАЖНО: Получаем RAW body без декодирования переносов строк
       String body = '';
       
@@ -255,8 +266,8 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
         );
         LoggerService.log('Decrypted ok');
       } catch (e) {
-        // Не расшифровалось (чужое письмо) - помечаем и пропускаем
-        LoggerService.log('Decryption failed (wrong key)');
+        // Не расшифровалось (чужое письмо или BCC копия) - помечаем и пропускаем
+        LoggerService.log('Decryption failed (wrong key) - skipping');
         await StorageService.addProcessedUID(widget.email, uid);
         await _emailService.markMessageAsSeen(uid);
         return;
