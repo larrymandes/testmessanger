@@ -72,14 +72,9 @@ class EmailService {
         if (newMessages.isNotEmpty) {
           LoggerService.log('Background fetch: Found ${newMessages.length} new messages');
           
-          // Уведомляем через callback
+          // Уведомляем через callback (ТОЛЬКО ОДИН РАЗ)
           if (_onNewMessageCallback != null) {
             _onNewMessageCallback!();
-          }
-          
-          // И через stream
-          if (_newMessageController != null && !_newMessageController!.isClosed) {
-            _newMessageController!.add(null);
           }
         }
       } catch (e) {
@@ -171,7 +166,7 @@ class EmailService {
         // КАК DELTA CHAT: Всегда уведомляем после IDLE
         LoggerService.log('IDLE: Notifying (had event: $hadEvent, EXISTS: $_lastKnownExists)');
         
-        // Уведомляем через callback (мгновенно) - ВСЕГДА
+        // Уведомляем через callback (мгновенно) - ТОЛЬКО ОДИН РАЗ
         try {
           if (_onNewMessageCallback != null) {
             LoggerService.log('IDLE: Calling callback');
@@ -183,10 +178,10 @@ class EmailService {
           LoggerService.log('IDLE: Callback error: $e');
         }
         
-        // И через stream (для совместимости)
-        if (_newMessageController != null && !_newMessageController!.isClosed) {
-          _newMessageController!.add(null);
-        }
+        // Stream НЕ используем (чтобы не было дублей)
+        // if (_newMessageController != null && !_newMessageController!.isClosed) {
+        //   _newMessageController!.add(null);
+        // }
         
         // Сразу перезапускаем IDLE (как Delta Chat - не ждём)
         await Future.delayed(const Duration(milliseconds: 50));
@@ -203,15 +198,16 @@ class EmailService {
 
   // Получение новых сообщений (как Delta Chat - используем UIDNEXT)
   Future<List<MimeMessage>> fetchNewMessages({int lastSeenUid = 0}) async {
-    if (_isFetching) {
-      LoggerService.log('Already fetching, skipping');
-      return [];
-    }
+    // Убрал проверку _isFetching - пусть всегда пытается
+    // Если IMAP занят - будет ошибка, но это лучше чем пропускать
     
     _isFetching = true;
     
     try {
-      if (_imapClient == null) await connectImap();
+      if (_imapClient == null) {
+        LoggerService.log('IMAP not connected, reconnecting...');
+        await connectImap();
+      }
 
       // Проверяем UIDVALIDITY - если изменился, ящик пересоздан
       final mailbox = await _imapClient!.selectInbox();

@@ -62,21 +62,22 @@ class _ChatListScreenState extends State<ChatListScreen> {
       // Устанавливаем callback ДО подключения (чтобы не пропустить события)
       _emailService.setNewMessageCallback(() {
         // Вызывается мгновенно при IDLE событии
-        _fetchNewMessages();
+        if (mounted) {
+          _fetchNewMessages();
+        }
       });
       
-      _emailService.connectImap().then((_) {
+      _emailService.connectImap().then((_) async {
         if (mounted) {
           setState(() => _connectionStatus = 'Подключено');
         }
         
-        // Также слушаем stream (для совместимости)
-        _emailService.listenForNewMessages().listen((_) {
-          _fetchNewMessages();
-        });
+        // НЕ слушаем stream - используем только callback (чтобы не было дублей)
         
-        // Сразу получаем новые сообщения при запуске
-        _fetchNewMessages();
+        // СРАЗУ получаем новые сообщения при запуске (ВАЖНО!)
+        LoggerService.log('Initial fetch on startup...');
+        await _fetchNewMessages();
+        
       }).catchError((e) {
         if (mounted) {
           setState(() => _connectionStatus = 'Ошибка');
@@ -399,9 +400,19 @@ class _ChatListScreenState extends State<ChatListScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () async {
+              LoggerService.log('Manual refresh triggered');
               setState(() => _connectionStatus = 'Обновление...');
-              await _fetchNewMessages();
-              setState(() => _connectionStatus = 'Подключено');
+              try {
+                await _fetchNewMessages();
+                if (mounted) {
+                  setState(() => _connectionStatus = 'Подключено');
+                }
+              } catch (e) {
+                LoggerService.log('Manual refresh error: $e');
+                if (mounted) {
+                  setState(() => _connectionStatus = 'Ошибка');
+                }
+              }
             },
           ),
           IconButton(
