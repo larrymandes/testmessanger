@@ -65,11 +65,17 @@ class MessageService {
     final uid = mimeMessage.uid ?? 0;
     final messageId = mimeMessage.decodeHeaderValue('message-id') ?? '';
     
-    if (uid == 0) return;
+    LoggerService.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    LoggerService.log('📨 Processing message UID=$uid from $from');
+    
+    if (uid == 0) {
+      LoggerService.log('❌ UID is 0, skipping');
+      return;
+    }
     
     // Пропускаем свои BCC копии
     if (from == accountEmail) {
-      LoggerService.log('UID=$uid: BCC copy from myself, skipping');
+      LoggerService.log('📤 BCC copy from myself, skipping');
       await StorageService.addProcessedUID(accountEmail, uid);
       if (messageId.isNotEmpty) {
         await StorageService.addProcessedMessageId(accountEmail, messageId);
@@ -86,16 +92,19 @@ class MessageService {
       body = mimeMessage.decodeTextPlainPart() ?? '';
     }
     
-    LoggerService.log('Processing UID=$uid from $from');
+    LoggerService.log('📄 Raw body length: ${body.length} chars');
     
     // Убираем пробелы
     body = body.replaceAll(RegExp(r'\s+'), '');
+    LoggerService.log('📄 Body after whitespace removal: ${body.length} chars');
     
-    // Парсим JSON
+    // Парсим JSON (зашифрованное)
     Map<String, dynamic> encrypted;
     try {
       encrypted = jsonDecode(body) as Map<String, dynamic>;
+      LoggerService.log('🔐 Encrypted JSON parsed, keys: ${encrypted.keys.toList()}');
     } catch (e) {
+      LoggerService.log('❌ Failed to parse encrypted JSON: $e');
       await StorageService.addProcessedUID(accountEmail, uid);
       if (messageId.isNotEmpty) {
         await StorageService.addProcessedMessageId(accountEmail, messageId);
@@ -110,9 +119,10 @@ class MessageService {
         encrypted: encrypted.map((k, v) => MapEntry(k, v.toString())),
         myKeyPair: keyPair,
       );
-      LoggerService.log('Decrypted ok');
+      LoggerService.log('🔓 Decrypted successfully');
+      LoggerService.log('📝 Plaintext: $plaintext');
     } catch (e) {
-      LoggerService.log('Decryption failed - skipping');
+      LoggerService.log('❌ Decryption failed: $e');
       await StorageService.addProcessedUID(accountEmail, uid);
       if (messageId.isNotEmpty) {
         await StorageService.addProcessedMessageId(accountEmail, messageId);
@@ -123,16 +133,27 @@ class MessageService {
     // Обрабатываем по типу
     try {
       final parsed = jsonDecode(plaintext);
+      LoggerService.log('✅ Plaintext JSON parsed');
+      LoggerService.log('📋 Type: ${parsed['type']}');
+      LoggerService.log('📋 Keys: ${parsed.keys.toList()}');
       
       if (parsed['type'] == 'invite') {
+        LoggerService.log('👥 Processing INVITE');
         await _handleInvite(parsed, from);
       } else if (parsed['type'] == 'read_receipt') {
+        LoggerService.log('📖 Processing READ_RECEIPT');
         await _handleReadReceipt(parsed, from);
       } else if (parsed['text'] != null) {
+        LoggerService.log('💬 Processing TEXT message');
         await _handleTextMessage(parsed, from, uid, messageId);
+      } else {
+        LoggerService.log('⚠️ Unknown message format, treating as text');
+        await _handleTextMessage({'text': plaintext, 'uid': uid.toString()}, from, uid, messageId);
       }
     } catch (e) {
-      // Старый формат
+      // Старый формат или не JSON
+      LoggerService.log('⚠️ Not JSON or parse error: $e');
+      LoggerService.log('📝 Treating as plain text message');
       await _handleTextMessage({'text': plaintext, 'uid': uid.toString()}, from, uid, messageId);
     }
     
@@ -141,30 +162,41 @@ class MessageService {
     if (messageId.isNotEmpty) {
       await StorageService.addProcessedMessageId(accountEmail, messageId);
     }
+    
+    LoggerService.log('✅ Message UID=$uid processed');
+    LoggerService.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   }
   
   Future<void> _handleInvite(Map<String, dynamic> invite, String from) async {
+    LoggerService.log('👥 INVITE handler started');
+    LoggerService.log('👥 Invite data: $invite');
+    
     final contactEmail = invite['email'] as String;
     final contactPubKey = invite['pubkey'] as String;
     
+    LoggerService.log('👥 Contact email: $contactEmail');
+    LoggerService.log('👥 Contact pubkey length: ${contactPubKey.length}');
+    LoggerService.log('👥 From: $from');
+    
     if (from != contactEmail) {
-      LoggerService.log('WARNING: from != contactEmail, skipping');
+      LoggerService.log('❌ WARNING: from ($from) != contactEmail ($contactEmail), skipping');
       return;
     }
     
     final existing = await StorageService.getContact(accountEmail, contactEmail);
     if (existing != null) {
-      LoggerService.log('Contact already exists');
+      LoggerService.log('⚠️ Contact $contactEmail already exists, skipping');
       return;
     }
     
+    LoggerService.log('💾 Saving contact to DB...');
     await StorageService.saveContact(
       accountEmail: accountEmail,
       contactEmail: contactEmail,
       publicKey: contactPubKey,
     );
     
-    LoggerService.log('Contact $contactEmail saved');
+    LoggerService.log('✅ Contact $contactEmail saved successfully!');
   }
   
   Future<void> _handleReadReceipt(Map<String, dynamic> receipt, String from) async {
@@ -187,6 +219,10 @@ class MessageService {
   }
   
   Future<void> _handleTextMessage(Map<String, dynamic> message, String from, int uid, String messageId) async {
+    LoggerService.log('💬 TEXT message handler started');
+    LoggerService.log('💬 Message data: $message');
+    LoggerService.log('💬 From: $from, UID: $uid');
+    
     await StorageService.saveMessage(
       accountEmail: accountEmail,
       contactEmail: from,
@@ -197,7 +233,7 @@ class MessageService {
       messageId: messageId.isNotEmpty ? messageId : null,
     );
     
-    LoggerService.log('Message saved');
+    LoggerService.log('✅ Text message saved to DB');
   }
   
   /// Уведомление UI
