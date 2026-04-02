@@ -234,19 +234,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
         await _emailService.markMessageAsSeen(uid);
         return;
       }
-      } catch (e) {
-        LoggerService.log('Decryption failed (wrong key)');
-        await StorageService.addProcessedUID(widget.email, uid);
-        if (messageId.isNotEmpty) {
-          await StorageService.addProcessedMessageId(widget.email, messageId);
-        }
-        await _emailService.markMessageAsSeen(uid);
-        return;
-      }
-      
-      // Обрабатываем
-      try {
-        final parsed = jsonDecode(plaintext);
       
       // Обрабатываем
       try {
