@@ -12,7 +12,6 @@ class EmailService {
   final bool smtpUseTls; // Использовать TLS сразу (465) или STARTTLS (587)
 
   ImapClient? _imapClient;
-  StreamController<void>? _newMessageController;
   bool _isIdleRunning = false;
   bool _isFetching = false;
   int _lastKnownExists = 0;
@@ -47,8 +46,13 @@ class EmailService {
       
       LoggerService.log('IMAP: Connected, EXISTS=$_lastKnownExists, UIDNEXT=$_lastUidNext, UIDVALIDITY=$_uidValidity');
       
-      // Запускаем IDLE сразу после подключения (ВАЖНО!)
-      _startIdleLoop();
+      // Запускаем IDLE только если ещё не запущен
+      if (!_isIdleRunning) {
+        LoggerService.log('IMAP: Starting IDLE loop');
+        _startIdleLoop();
+      } else {
+        LoggerService.log('IMAP: IDLE already running, skipping start');
+      }
       
       // Запускаем фоновый fetch loop (как Delta Chat) - backup каждые 5 минут
       _startBackgroundFetchLoop();
@@ -100,26 +104,27 @@ class EmailService {
     });
   }
 
-  // IMAP IDLE для мгновенных уведомлений (как в Delta Chat)
-  Stream<void> listenForNewMessages() {
-    if (_newMessageController != null && !_newMessageController!.isClosed) {
-      return _newMessageController!.stream;
-    }
-    
-    _newMessageController = StreamController<void>.broadcast();
-    _startIdleLoop();
-    
-    return _newMessageController!.stream;
-  }
-
   void _startIdleLoop() async {
-    if (_isIdleRunning) return;
+    if (_isIdleRunning) {
+      LoggerService.log('IDLE: Already running, skipping');
+      return;
+    }
     _isIdleRunning = true;
+    LoggerService.log('IDLE: Loop started');
 
-    while (_isIdleRunning && _newMessageController != null && !_newMessageController!.isClosed) {
+    while (_isIdleRunning) {
       try {
         if (_imapClient == null) {
-          await connectImap();
+          LoggerService.log('IDLE: IMAP client is null, reconnecting in 10 seconds...');
+          await Future.delayed(const Duration(seconds: 10));
+          
+          try {
+            await connectImap();
+            LoggerService.log('IDLE: Reconnected successfully');
+          } catch (e) {
+            LoggerService.log('IDLE: Reconnect failed: $e, will retry...');
+            continue; // Попробуем снова в следующей итерации
+          }
         }
 
         if (!_imapClient!.serverInfo.supportsIdle) {
@@ -211,11 +216,6 @@ class EmailService {
         } else {
           LoggerService.log('IDLE: Callback already pending, skipping');
         }
-        
-        // Stream НЕ используем (чтобы не было дублей)
-        // if (_newMessageController != null && !_newMessageController!.isClosed) {
-        //   _newMessageController!.add(null);
-        // }
         
         // Сразу перезапускаем IDLE (как Delta Chat - не ждём)
         await Future.delayed(const Duration(milliseconds: 50));
@@ -541,8 +541,5 @@ class EmailService {
   Future<void> disconnect() async {
     _isIdleRunning = false;
     await _imapClient?.logout();
-    if (_newMessageController != null && !_newMessageController!.isClosed) {
-      await _newMessageController?.close();
-    }
   }
 }
