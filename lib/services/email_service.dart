@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:enough_mail/enough_mail.dart';
 import 'logger_service.dart';
+import 'storage_service.dart';
 
 class EmailService {
   final String email;
@@ -285,32 +286,30 @@ class EmailService {
       
       // ВАЖНО: Используем lastSeenUid из БД, а НЕ _lastUidNext!
       // _lastUidNext используется только для IDLE событий
-      final startUid = lastSeenUid > 0 ? lastSeenUid + 1 : 1;
       
-      // ВАЖНО: При первом запуске (lastSeenUid=0) fetch'им только последние 5 писем!
-      // Это предотвращает загрузку тысяч старых писем
-      if (lastSeenUid == 0 && currentUidNext > 5) {
-        final limitedStartUid = currentUidNext - 5;
-        LoggerService.log('First run: limiting fetch to last 5 messages (UID $limitedStartUid:${currentUidNext - 1})');
+      // При первом запуске (lastSeenUid=0) устанавливаем точку отсчёта
+      // Обрабатываем только НОВЫЕ письма после этого момента (как Delta Chat)
+      if (lastSeenUid == 0) {
+        LoggerService.log('First run: setting initial sync point to UIDNEXT=${currentUidNext - 1}');
+        LoggerService.log('First run: will process only NEW messages from now on');
         
-        final sequence = MessageSequence.fromRange(limitedStartUid, currentUidNext - 1);
-        final fetchResult = await _imapClient!.uidFetchMessages(
-          sequence,
-          'BODY.PEEK[]',
-        );
+        // Устанавливаем точку отсчёта (текущий UIDNEXT - 1)
+        // Все письма ДО этого момента игнорируются
+        if (currentUidNext > 1) {
+          await StorageService.addProcessedUID(email, currentUidNext - 1);
+        }
         
-        final messages = _filterChatMessages(fetchResult.messages, 0);
-        
-        // Обновляем _lastUidNext
+        // Обновляем _lastUidNext для IDLE
         _lastUidNext = currentUidNext;
         
         fetchStopwatch.stop();
-        LoggerService.log('${messages.length} mails read from "INBOX" in ${fetchStopwatch.elapsedMilliseconds}ms.');
-        LoggerService.log('Fetched ${messages.length} new chat messages');
+        LoggerService.log('First run: sync point set, ready to receive new messages');
         
         _callbackPending = false;
-        return messages;
+        return []; // Возвращаем пустой список - старые письма не обрабатываем
       }
+      
+      final startUid = lastSeenUid + 1;
       
       // Если нет новых сообщений (startUid >= currentUidNext)
       if (startUid >= currentUidNext) {
