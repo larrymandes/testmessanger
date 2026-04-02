@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'package:pointycastle/api.dart' show AsymmetricKeyPair, PublicKey, PrivateKey;
-import 'package:enough_mail/enough_mail.dart';
-import '../services/email_service.dart';
-import '../services/crypto_service.dart';
+import '../services/chat_service.dart';
+import '../services/account_service.dart';
 import '../services/storage_service.dart';
 import '../services/logger_service.dart';
-import 'dart:convert';
 import 'chat_screen.dart';
 import 'qr_screen.dart';
 import 'logs_screen.dart';
@@ -27,19 +24,18 @@ class ChatListScreen extends StatefulWidget {
 }
 
 class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObserver {
-  late EmailService _emailService;
+  late ChatService _chatService;
+  late AccountData _accountData;
   final Map<String, Map<String, dynamic>> _chats = {};
   bool _isLoading = true;
   String _connectionStatus = 'Подключение...';
-  AsymmetricKeyPair<PublicKey, PrivateKey>? _myKeyPair;
-  String? _myPublicKeyHex;
   Timer? _periodicFetchTimer; // Периодический fetch (backup)
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this); // Слушаем lifecycle
-    _emailService = EmailService(
+    _chatService = ChatService(
       email: widget.email,
       password: widget.password,
     );
@@ -48,11 +44,10 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
   
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Когда приложение возвращается на передний план - fetch новые сообщения
+    // Когда приложение возвращается на передний план - обновляем UI
     if (state == AppLifecycleState.resumed) {
-      LoggerService.log('📱 App resumed - fetching new messages');
-      _fetchNewMessages();
-      // Перезапускаем периодический fetch
+      LoggerService.log('📱 App resumed - reloading contacts');
+      _loadContacts();
       _startPeriodicFetch();
     } else if (state == AppLifecycleState.paused) {
       LoggerService.log('📱 App paused - stopping periodic fetch');
@@ -64,59 +59,46 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
   void _startPeriodicFetch() {
     _periodicFetchTimer?.cancel();
     _periodicFetchTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      LoggerService.log('⏰ Periodic fetch (backup)...');
-      _fetchNewMessages();
+      LoggerService.log('⏰ Periodic UI refresh (backup)...');
+      if (mounted) {
+        _loadContacts();
+      }
     });
-    LoggerService.log('⏰ Periodic fetch started (every 30s)');
+    LoggerService.log('⏰ Periodic UI refresh started (every 30s)');
   }
 
   Future<void> _initialize() async {
     setState(() => _isLoading = true);
     
     try {
-      // Загружаем или генерируем ключи
-      await _loadOrGenerateKeys();
+      LoggerService.log('ChatListScreen: Initializing ChatService...');
       
-      // Загружаем контакты
+      // Инициализируем ChatService (он сам загрузит ключи, подключится к IMAP и т.д.)
+      await _chatService.initialize();
+      
+      // Получаем данные аккаунта
+      _accountData = _chatService.accountData;
+      
+      // Регистрируем callback для обновления UI
+      _chatService.addUICallback(() {
+        LoggerService.log('ChatListScreen: UI callback triggered!');
+        if (mounted) {
+          _loadContacts();
+        }
+      });
+      
+      // Загружаем контакты из БД
       await _loadContacts();
       
-      setState(() => _isLoading = false);
-      
-      // Подключаемся к IMAP асинхронно (не блокируем UI)
-      setState(() => _connectionStatus = 'Подключение...');
-      
-      // Устанавливаем callback ДО подключения (чтобы не пропустить события)
-      _emailService.setNewMessageCallback(() async {
-        // Вызывается мгновенно при IDLE событии
-        LoggerService.log('ChatListScreen: Callback triggered!');
-        if (mounted) {
-          LoggerService.log('ChatListScreen: Fetching new messages...');
-          await _fetchNewMessages(); // ВАЖНО: await чтобы дождаться обработки!
-        } else {
-          LoggerService.log('ChatListScreen: NOT mounted, skipping');
-        }
+      setState(() {
+        _isLoading = false;
+        _connectionStatus = 'Подключено';
       });
       
-      _emailService.connectImap().then((_) async {
-        if (mounted) {
-          setState(() => _connectionStatus = 'Подключено');
-        }
-        
-        // НЕ слушаем stream - используем только callback (чтобы не было дублей)
-        
-        // СРАЗУ получаем новые сообщения при запуске (ВАЖНО!)
-        LoggerService.log('Initial fetch on startup...');
-        await _fetchNewMessages();
-        
-        // ЗАПУСКАЕМ ПЕРИОДИЧЕСКИЙ FETCH каждые 30 секунд (BACKUP на случай если IDLE не сработал)
-        _startPeriodicFetch();
-        
-      }).catchError((e) {
-        if (mounted) {
-          setState(() => _connectionStatus = 'Ошибка');
-          _showErrorWithCopy('Ошибка подключения', e.toString());
-        }
-      });
+      // Запускаем периодический refresh UI
+      _startPeriodicFetch();
+      
+      LoggerService.log('ChatListScreen: Initialization complete!');
       
     } catch (e) {
       setState(() {
@@ -129,33 +111,10 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
     }
   }
 
-  Future<void> _loadOrGenerateKeys() async {
-    final account = await StorageService.getAccount(widget.email);
-    
-    if (account != null) {
-      // Загружаем существующие ключи
-      final privateKey = CryptoService.importPrivateKey(account['privateKey']!);
-      final publicKey = CryptoService.importPublicKey(account['publicKey']!);
-      _myKeyPair = AsymmetricKeyPair<PublicKey, PrivateKey>(publicKey, privateKey);
-      _myPublicKeyHex = account['publicKey']!;
-    } else {
-      // Генерируем новые ключи
-      _myKeyPair = await CryptoService.generateKeyPair();
-      _myPublicKeyHex = CryptoService.exportPublicKey(_myKeyPair!);
-      
-      final privateKeyHex = CryptoService.exportPrivateKey(_myKeyPair!);
-      
-      await StorageService.saveAccount(
-        email: widget.email,
-        privateKey: privateKeyHex,
-        publicKey: _myPublicKeyHex!,
-      );
-    }
-  }
-
   Future<void> _loadContacts() async {
     final contacts = await StorageService.getContacts(widget.email);
     
+    _chats.clear();
     for (final contact in contacts) {
       final messages = await StorageService.getMessages(
         widget.email,
@@ -169,241 +128,7 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
       };
     }
     
-    setState(() {});
-  }
-
-  Future<void> _fetchNewMessages() async {
-    final fetchStartTime = DateTime.now();
-    LoggerService.log('UI: Fetch started at ${fetchStartTime.hour}:${fetchStartTime.minute}:${fetchStartTime.second}.${fetchStartTime.millisecond}');
-    
-    try {
-      final maxUID = await StorageService.getMaxProcessedUID(widget.email);
-      LoggerService.log('UI: Requesting fetch (last UID: $maxUID)...');
-      
-      final newMessages = await _emailService.fetchNewMessages(lastSeenUid: maxUID);
-      
-      final afterFetchTime = DateTime.now();
-      final fetchDuration = afterFetchTime.difference(fetchStartTime).inMilliseconds;
-      LoggerService.log('UI: Got ${newMessages.length} new messages in ${fetchDuration}ms');
-      
-      for (final mimeMessage in newMessages) {
-        await _processMessage(mimeMessage);
-      }
-      
-      // ВСЕГДА обновляем UI сразу после обработки
-      if (mounted) {
-        await _loadContacts();
-        setState(() {});
-        
-        final endTime = DateTime.now();
-        final totalDuration = endTime.difference(fetchStartTime).inMilliseconds;
-        LoggerService.log('UI: ✅ Fetch + UI update completed in ${totalDuration}ms (fetch: ${fetchDuration}ms, process+UI: ${totalDuration - fetchDuration}ms)');
-      }
-    } catch (e) {
-      LoggerService.log('UI: Fetch error: $e');
-      if (mounted) {
-        setState(() => _connectionStatus = 'Ошибка');
-      }
-    }
-  }
-
-  Future<void> _processMessage(dynamic mimeMessage) async {
-    try {
-      final from = mimeMessage.from?.first?.email ?? '';
-      final uid = mimeMessage.uid ?? 0;
-      final messageId = mimeMessage.decodeHeaderValue('message-id') ?? '';
-      
-      // Пропускаем битые
-      if (uid == 0) return;
-      
-      // ВАЖНО: Пропускаем BCC копии своих сообщений (они уже в БД)
-      if (from == widget.email) {
-        LoggerService.log('UID=$uid: BCC copy from myself, skipping');
-        await StorageService.addProcessedUID(widget.email, uid);
-        if (messageId.isNotEmpty) {
-          await StorageService.addProcessedMessageId(widget.email, messageId);
-        }
-        await _emailService.markMessageAsSeen(uid);
-        return;
-      }
-      
-      // ВАЖНО: Получаем RAW body без декодирования переносов строк
-      String body = '';
-      
-      // Пробуем получить text/plain часть
-      final textPlainPart = mimeMessage.getPartWithMediaSubtype(MediaSubtype.textPlain);
-      if (textPlainPart != null) {
-        body = textPlainPart.decodeContentText() ?? '';
-      } else {
-        // Fallback на decodeTextPlainPart
-        body = mimeMessage.decodeTextPlainPart() ?? '';
-      }
-      
-      LoggerService.log('Processing UID=$uid from $from');
-      LoggerService.log('Body length: ${body.length}');
-      
-      // Убираем все переносы строк и пробелы из JSON
-      body = body.replaceAll(RegExp(r'\s+'), '');
-      
-      // Парсим JSON
-      Map<String, dynamic> encrypted;
-      try {
-        encrypted = jsonDecode(body) as Map<String, dynamic>;
-        LoggerService.log('Body is valid JSON');
-      } catch (e) {
-        // Не JSON - помечаем и пропускаем
-        await StorageService.addProcessedUID(widget.email, uid);
-        await _emailService.markMessageAsSeen(uid);
-        return;
-      }
-      
-      // Расшифровываем
-      String plaintext;
-      try {
-        plaintext = await CryptoService.decryptMessage(
-          encrypted: encrypted.map((k, v) => MapEntry(k, v.toString())),
-          myKeyPair: _myKeyPair!,
-        );
-        LoggerService.log('Decrypted ok');
-      } catch (e) {
-        // Не расшифровалось (чужое письмо или BCC копия) - помечаем и пропускаем
-        LoggerService.log('Decryption failed (wrong key) - skipping');
-        await StorageService.addProcessedUID(widget.email, uid);
-        await _emailService.markMessageAsSeen(uid);
-        return;
-      }
-      
-      // Обрабатываем
-      try {
-        final parsed = jsonDecode(plaintext);
-        LoggerService.log('Message type: ${parsed['type'] ?? 'text'}');
-        
-        if (parsed['type'] == 'invite') {
-          LoggerService.log('Processing invite...');
-          await _handleInvite(parsed, from);
-        } else if (parsed['type'] == 'read_receipt') {
-          LoggerService.log('Processing read receipt...');
-          await _handleReadReceipt(parsed, from);
-        } else if (parsed['text'] != null) {
-          LoggerService.log('Processing text message...');
-          await _handleTextMessage(parsed, from, uid, messageId);
-        }
-      } catch (e) {
-        // Старый формат
-        LoggerService.log('Processing text message...');
-        await _handleTextMessage({'text': plaintext, 'uid': uid.toString()}, from, uid, messageId);
-      }
-      
-      // Помечаем как обработанное
-      await StorageService.addProcessedUID(widget.email, uid);
-      if (messageId.isNotEmpty) {
-        await StorageService.addProcessedMessageId(widget.email, messageId);
-      }
-      await _emailService.markMessageAsSeen(uid);
-      
-    } catch (e) {
-      LoggerService.log('Process error: $e');
-    }
-  }
-
-  Future<void> _handleInvite(Map<String, dynamic> invite, String from) async {
-    final contactEmail = invite['email'] as String;
-    final contactPubKey = invite['pubkey'] as String;
-    
-    LoggerService.log('Invite from $contactEmail (received from $from)');
-    
-    // Проверяем что from совпадает с contactEmail (защита от подделки)
-    if (from != contactEmail) {
-      LoggerService.log('WARNING: from ($from) != contactEmail ($contactEmail), skipping');
-      return;
-    }
-    
-    // Проверяем не добавлен ли
-    final existing = await StorageService.getContact(widget.email, contactEmail);
-    if (existing != null) {
-      LoggerService.log('Contact already exists');
-      return;
-    }
-    
-    // Сохраняем контакт
-    await StorageService.saveContact(
-      accountEmail: widget.email,
-      contactEmail: contactEmail,
-      publicKey: contactPubKey,
-    );
-    
-    LoggerService.log('Contact $contactEmail saved successfully');
-    
     if (mounted) {
-      // Перезагружаем контакты
-      await _loadContacts();
-      
-      // Обновляем UI
-      setState(() {});
-      
-      // Показываем уведомление
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('✓ Новый контакт добавлен: $contactEmail'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    }
-  }
-
-  Future<void> _handleReadReceipt(Map<String, dynamic> receipt, String from) async {
-    // Поддерживаем как старый формат (message_uid), так и новый (message_uids)
-    final messageUIDs = receipt['message_uids'] as List<dynamic>?;
-    final singleUID = receipt['message_uid'];
-    
-    final uids = messageUIDs ?? (singleUID != null ? [singleUID] : []);
-    
-    if (uids.isEmpty) {
-      LoggerService.log('📖 WARNING: Read receipt without UIDs');
-      return;
-    }
-    
-    LoggerService.log('📖 Read receipt: ${uids.length} messages from=$from');
-    
-    int updated = 0;
-    for (final uid in uids) {
-      // Обновляем статус сообщения на 'read'
-      final success = await StorageService.updateMessageStatus(widget.email, uid.toString(), 'read');
-      if (success) updated++;
-    }
-    
-    LoggerService.log('📖 Updated $updated/${uids.length} messages to READ in DB');
-    
-    // Обновляем UI - ВАЖНО: обновляем и ChatListScreen и ChatScreen!
-    if (mounted) {
-      await _loadContacts();
-      setState(() {});
-      LoggerService.log('📖 ChatListScreen UI updated');
-    }
-    
-    // Уведомляем ВСЕ callbacks (включая ChatScreen) чтобы они тоже обновились
-    _emailService.notifyCallbacks();
-    LoggerService.log('📖 All screens notified about read receipts');
-  }
-
-  Future<void> _handleTextMessage(Map<String, dynamic> message, String from, int uid, String messageId) async {
-    await StorageService.saveMessage(
-      accountEmail: widget.email,
-      contactEmail: from,
-      text: message['text'],
-      sent: false,
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      uid: message['uid'],
-      messageId: messageId.isNotEmpty ? messageId : null,
-    );
-    LoggerService.log('Message saved');
-    
-    if (mounted) {
-      // Перезагружаем контакты
-      await _loadContacts();
-      
-      // Обновляем UI
       setState(() {});
     }
   }
@@ -445,7 +170,7 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
               LoggerService.log('Manual refresh triggered');
               setState(() => _connectionStatus = 'Обновление...');
               try {
-                await _fetchNewMessages();
+                await _loadContacts();
                 if (mounted) {
                   setState(() => _connectionStatus = 'Подключено');
                 }
@@ -560,10 +285,7 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
                 builder: (context) => ChatScreen(
                   contactEmail: email,
                   contactPublicKey: chat['publicKey'],
-                  myEmail: widget.email,
-                  myKeyPair: _myKeyPair!,
-                  myPublicKeyHex: _myPublicKeyHex!,
-                  emailService: _emailService,
+                  chatService: _chatService,
                 ),
               ),
             ).then((_) => _loadContacts());
@@ -579,7 +301,7 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
       MaterialPageRoute(
         builder: (context) => QRScreen(
           myEmail: widget.email,
-          myPublicKey: _myPublicKeyHex!,
+          myPublicKey: _accountData.publicKeyHex,
         ),
       ),
     );
@@ -590,9 +312,7 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
       context,
       MaterialPageRoute(
         builder: (context) => ScanQRScreen(
-          myEmail: widget.email,
-          myPublicKeyHex: _myPublicKeyHex!,
-          emailService: _emailService,
+          chatService: _chatService,
           onContactAdded: (email, pubKey) async {
             await _loadContacts();
           },
@@ -631,7 +351,7 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
   void dispose() {
     WidgetsBinding.instance.removeObserver(this); // Удаляем observer
     _periodicFetchTimer?.cancel(); // Останавливаем периодический fetch
-    _emailService.disconnect();
+    _chatService.disconnect();
     super.dispose();
   }
 }

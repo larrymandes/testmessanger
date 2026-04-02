@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
-import 'package:pointycastle/api.dart' show AsymmetricKeyPair, PublicKey, PrivateKey;
 import 'dart:convert';
-import 'dart:math';
-import '../services/email_service.dart';
+import '../services/chat_service.dart';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
 import '../services/logger_service.dart';
@@ -13,19 +11,13 @@ import '../services/logger_service.dart';
 class ChatScreen extends StatefulWidget {
   final String contactEmail;
   final String contactPublicKey;
-  final String myEmail;
-  final AsymmetricKeyPair<PublicKey, PrivateKey> myKeyPair;
-  final String myPublicKeyHex;
-  final EmailService emailService;
+  final ChatService chatService;
 
   const ChatScreen({
     super.key,
     required this.contactEmail,
     required this.contactPublicKey,
-    required this.myEmail,
-    required this.myKeyPair,
-    required this.myPublicKeyHex,
-    required this.emailService,
+    required this.chatService,
   });
 
   @override
@@ -53,32 +45,12 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     };
     
-    widget.emailService.setNewMessageCallback(_messageCallback);
+    widget.chatService.addUICallback(_messageCallback);
     LoggerService.log('ChatScreen: Callback registered');
     
-    // ВАЖНО: Сначала загружаем из БД
+    // Загружаем сообщения из БД
     _loadMessages();
     _sendReadReceipts();
-    
-    // ПОТОМ делаем fetch новых сообщений с сервера
-    LoggerService.log('ChatScreen: Requesting initial fetch...');
-    _requestFetch();
-  }
-  
-  // Запрашиваем fetch через EmailService
-  Future<void> _requestFetch() async {
-    try {
-      final maxUID = await StorageService.getMaxProcessedUID(widget.myEmail);
-      final newMessages = await widget.emailService.fetchNewMessages(lastSeenUid: maxUID);
-      
-      if (newMessages.isNotEmpty) {
-        LoggerService.log('ChatScreen: Got ${newMessages.length} new messages, reloading...');
-        await _loadMessages();
-        await _sendReadReceipts();
-      }
-    } catch (e) {
-      LoggerService.log('ChatScreen: Fetch error: $e');
-    }
   }
 
   Future<void> _loadMessages() async {
@@ -86,7 +58,7 @@ class _ChatScreenState extends State<ChatScreen> {
     LoggerService.log('ChatScreen: _loadMessages() called at ${startTime.hour}:${startTime.minute}:${startTime.second}.${startTime.millisecond}');
     
     final messages = await StorageService.getMessages(
-      widget.myEmail,
+      widget.chatService.email,
       widget.contactEmail,
     );
     
@@ -127,7 +99,7 @@ class _ChatScreenState extends State<ChatScreen> {
     
     return TextMessage(
       id: uid,
-      authorId: isSent ? widget.myEmail : widget.contactEmail,
+      authorId: isSent ? widget.chatService.email : widget.contactEmail,
       createdAt: timestamp,
       text: msg['text'],
       // Отправленные: показываем галочки
@@ -140,7 +112,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _sendReadReceipts() async {
     // Находим непрочитанные входящие сообщения
     final messages = await StorageService.getMessages(
-      widget.myEmail,
+      widget.chatService.email,
       widget.contactEmail,
     );
 
@@ -164,18 +136,18 @@ class _ChatScreenState extends State<ChatScreen> {
       final encrypted = await CryptoService.encryptMessage(
         plaintext: receipt,
         recipientPubKeyHex: widget.contactPublicKey,
-        senderEmail: widget.myEmail,
+        senderEmail: widget.chatService.email,
         recipientEmail: widget.contactEmail,
       );
 
-      await widget.emailService.sendMessage(
+      await widget.chatService.sendMessage(
         toEmail: widget.contactEmail,
         encryptedPayload: jsonEncode(encrypted),
       );
       
       // Помечаем все как отправленные
       for (final msg in unread) {
-        await StorageService.markMessageReadSent(widget.myEmail, msg['uid']);
+        await StorageService.markMessageReadSent(widget.chatService.email, msg['uid']);
       }
       
       LoggerService.log('ChatScreen: ✅ ${unread.length} read receipts sent');
@@ -191,7 +163,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // Добавляем сообщение с статусом "отправляется"
     final chatMessage = TextMessage(
       id: messageUID,
-      authorId: widget.myEmail,
+      authorId: widget.chatService.email,
       createdAt: now,
       text: text,
       metadata: {'sending': true},
@@ -202,7 +174,7 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       // ВАЖНО: Сохраняем в БД СРАЗУ (до отправки) чтобы BCC не опередила
       await StorageService.saveMessage(
-        accountEmail: widget.myEmail,
+        accountEmail: widget.chatService.email,
         contactEmail: widget.contactEmail,
         text: text,
         sent: true,
@@ -222,21 +194,21 @@ class _ChatScreenState extends State<ChatScreen> {
       final encrypted = await CryptoService.encryptMessage(
         plaintext: messageWithUID,
         recipientPubKeyHex: widget.contactPublicKey,
-        senderEmail: widget.myEmail,
+        senderEmail: widget.chatService.email,
         recipientEmail: widget.contactEmail,
       );
 
       // Отправляем и получаем Message-ID
-      final messageId = await widget.emailService.sendMessage(
+      final messageId = await widget.chatService.sendMessage(
         toEmail: widget.contactEmail,
         encryptedPayload: jsonEncode(encrypted),
       );
 
       // Обновляем статус на "sent" и добавляем Message-ID
-      await StorageService.updateMessageStatus(widget.myEmail, messageUID, 'sent');
+      await StorageService.updateMessageStatus(widget.chatService.email, messageUID, 'sent');
       
       // Сохраняем Message-ID как обработанный (чтобы не обрабатывать свою копию)
-      await StorageService.addProcessedMessageId(widget.myEmail, messageId);
+      await StorageService.addProcessedMessageId(widget.chatService.email, messageId);
 
       // Обновляем статус на "отправлено"
       final updatedMessage = chatMessage.copyWith(
@@ -251,7 +223,7 @@ class _ChatScreenState extends State<ChatScreen> {
       LoggerService.log('Send error: $e');
       
       // Обновляем статус на "ошибка"
-      await StorageService.updateMessageStatus(widget.myEmail, messageUID, 'error');
+      await StorageService.updateMessageStatus(widget.chatService.email, messageUID, 'error');
       
       final updatedMessage = chatMessage.copyWith(
         failedAt: now,
@@ -313,12 +285,12 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Chat(
         chatController: _chatController,
-        currentUserId: widget.myEmail,
+        currentUserId: widget.chatService.email,
         onMessageSend: _handleSendPressed,
         resolveUser: (userId) async {
           return User(
             id: userId,
-            name: userId == widget.myEmail ? 'Вы' : widget.contactEmail,
+            name: userId == widget.chatService.email ? 'Вы' : widget.contactEmail,
           );
         },
         theme: ChatTheme.dark().copyWith(
@@ -334,9 +306,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
-    LoggerService.log('ChatScreen: dispose() - NOT removing callback (will check mounted)');
-    // НЕ удаляем callback - пусть висит, но проверяет mounted
-    // widget.emailService.removeNewMessageCallback(_messageCallback);
+    LoggerService.log('ChatScreen: dispose() - removing callback');
+    widget.chatService.removeUICallback(_messageCallback);
     _chatController.dispose();
     super.dispose();
   }

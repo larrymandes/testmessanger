@@ -5,7 +5,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'dart:convert';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
-import '../services/email_service.dart';
+import '../services/chat_service.dart';
 import '../services/logger_service.dart';
 
 class QRScreen extends StatelessWidget {
@@ -88,16 +88,12 @@ class QRScreen extends StatelessWidget {
 }
 
 class ScanQRScreen extends StatefulWidget {
-  final String myEmail;
-  final String myPublicKeyHex;
-  final EmailService emailService;
+  final ChatService chatService;
   final Function(String contactEmail, String publicKey) onContactAdded;
 
   const ScanQRScreen({
     super.key,
-    required this.myEmail,
-    required this.myPublicKeyHex,
-    required this.emailService,
+    required this.chatService,
     required this.onContactAdded,
   });
 
@@ -174,12 +170,12 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
       final contactEmail = parts[1];
       final publicKey = parts[2];
 
-      if (contactEmail == widget.myEmail) {
+      if (contactEmail == widget.chatService.email) {
         throw Exception('Нельзя добавить самого себя');
       }
 
       // Проверяем, не добавлен ли уже
-      final existing = await StorageService.getContact(widget.myEmail, contactEmail);
+      final existing = await StorageService.getContact(widget.chatService.email, contactEmail);
       if (existing != null) {
         if (mounted) {
           // Останавливаем камеру
@@ -199,7 +195,7 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
 
       // Сохраняем контакт
       await StorageService.saveContact(
-        accountEmail: widget.myEmail,
+        accountEmail: widget.chatService.email,
         contactEmail: contactEmail,
         publicKey: publicKey,
       );
@@ -212,8 +208,8 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
         
         final inviteMessage = jsonEncode({
           'type': 'invite',
-          'email': widget.myEmail,
-          'pubkey': widget.myPublicKeyHex,
+          'email': widget.chatService.email,
+          'pubkey': widget.chatService.accountData.publicKeyHex,
         });
         
         LoggerService.log('QR: Encrypting invite...');
@@ -221,13 +217,13 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
         final encrypted = await CryptoService.encryptMessage(
           plaintext: inviteMessage,
           recipientPubKeyHex: publicKey,
-          senderEmail: widget.myEmail,
+          senderEmail: widget.chatService.email,
           recipientEmail: contactEmail,
         );
         
         LoggerService.log('QR: Sending via SMTP...');
         
-        await widget.emailService.sendMessage(
+        await widget.chatService.sendMessage(
           toEmail: contactEmail,
           encryptedPayload: jsonEncode(encrypted),
         );

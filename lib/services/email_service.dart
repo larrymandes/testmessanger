@@ -21,6 +21,9 @@ class EmailService {
   // Callback для уведомления о новых сообщениях (вызывается из IDLE)
   final List<Function()> _callbacks = []; // Список всех callback'ов
   bool _callbackPending = false; // Флаг что callback уже вызван, ждём завершения fetch
+  
+  // Обработчик сообщений (устанавливается извне)
+  Future<void> Function()? _messageProcessor;
 
   EmailService({
     required this.email,
@@ -70,6 +73,12 @@ class EmailService {
     }
   }
   
+  // Устанавливаем обработчик сообщений (вызывается ДО уведомления экранов)
+  void setMessageProcessor(Future<void> Function() processor) {
+    _messageProcessor = processor;
+    LoggerService.log('EmailService: Message processor registered');
+  }
+  
   // Удаляем callback
   void removeNewMessageCallback(Function() callback) {
     _callbacks.remove(callback);
@@ -96,19 +105,10 @@ class EmailService {
       
       try {
         LoggerService.log('Background fetch: Periodic check (backup)...');
-        final newMessages = await fetchNewMessages(lastSeenUid: 0);
         
-        if (newMessages.isNotEmpty) {
-          LoggerService.log('Background fetch: Found ${newMessages.length} new messages');
-          
-          // Уведомляем через все callbacks
-          for (final callback in _callbacks) {
-            try {
-              callback();
-            } catch (e) {
-              LoggerService.log('Background fetch: Callback error: $e');
-            }
-          }
+        // Вызываем обработчик сообщений (он сам fetch'ит и уведомляет UI)
+        if (_messageProcessor != null) {
+          await _messageProcessor!();
         }
       } catch (e) {
         LoggerService.log('Background fetch error: $e');
@@ -205,27 +205,19 @@ class EmailService {
         
         // Уведомляем через callback ТОЛЬКО если не ждём предыдущий
         if (!_callbackPending) {
+          _callbackPending = true; // Блокируем повторные вызовы
+          
           try {
-            if (_callbacks.isNotEmpty) {
-              LoggerService.log('IDLE: Calling ${_callbacks.length} callbacks');
-              _callbackPending = true; // Блокируем повторные вызовы
-              
-              // Вызываем ВСЕ зарегистрированные callback'и ПОСЛЕДОВАТЕЛЬНО
-              for (int i = 0; i < _callbacks.length; i++) {
-                try {
-                  LoggerService.log('IDLE: Calling callback #${i + 1}...');
-                  await _callbacks[i](); // ВАЖНО: await чтобы ждать завершения!
-                  LoggerService.log('IDLE: Callback #${i + 1} completed');
-                } catch (e) {
-                  LoggerService.log('IDLE: Callback #${i + 1} error: $e');
-                }
-              }
-              LoggerService.log('IDLE: All callbacks completed!');
-            } else {
-              LoggerService.log('IDLE: WARNING - No callbacks registered!');
+            // ВАЖНО: Вызываем обработчик сообщений
+            // Он сам обработает сообщения И уведомит UI
+            LoggerService.log('IDLE: Processing new messages...');
+            if (_messageProcessor != null) {
+              await _messageProcessor!();
+              LoggerService.log('IDLE: Messages processed and UI notified!');
             }
           } catch (e) {
-            LoggerService.log('IDLE: Callbacks error: $e');
+            LoggerService.log('IDLE: Processing error: $e');
+          } finally {
             _callbackPending = false;
           }
         } else {
