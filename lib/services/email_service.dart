@@ -147,7 +147,8 @@ class EmailService {
             
             // Уведомляем только если УВЕЛИЧИЛОСЬ
             if (newExists > _lastKnownExists) {
-              LoggerService.log('IDLE: New message! $_lastKnownExists -> $newExists');
+              final now = DateTime.now();
+              LoggerService.log('IDLE: New message! $_lastKnownExists -> $newExists at ${now.hour}:${now.minute}:${now.second}.${now.millisecond}');
               hadEvent = true;
               if (!completer.isCompleted) {
                 completer.complete();

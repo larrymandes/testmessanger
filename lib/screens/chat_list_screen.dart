@@ -144,7 +144,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Future<void> _fetchNewMessages() async {
-    // Не проверяем _isFetching здесь - EmailService сам решит
+    final fetchStartTime = DateTime.now();
+    LoggerService.log('UI: Fetch started at ${fetchStartTime.hour}:${fetchStartTime.minute}:${fetchStartTime.second}.${fetchStartTime.millisecond}');
     
     try {
       final maxUID = await StorageService.getMaxProcessedUID(widget.email);
@@ -152,7 +153,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
       
       final newMessages = await _emailService.fetchNewMessages(lastSeenUid: maxUID);
       
-      LoggerService.log('UI: Got ${newMessages.length} new messages');
+      final afterFetchTime = DateTime.now();
+      final fetchDuration = afterFetchTime.difference(fetchStartTime).inMilliseconds;
+      LoggerService.log('UI: Got ${newMessages.length} new messages in ${fetchDuration}ms');
       
       for (final mimeMessage in newMessages) {
         await _processMessage(mimeMessage);
@@ -162,6 +165,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
       if (mounted) {
         await _loadContacts();
         setState(() {});
+        
+        final endTime = DateTime.now();
+        final totalDuration = endTime.difference(fetchStartTime).inMilliseconds;
+        LoggerService.log('UI: ✅ Fetch + UI update completed in ${totalDuration}ms (fetch: ${fetchDuration}ms, process+UI: ${totalDuration - fetchDuration}ms)');
       }
     } catch (e) {
       LoggerService.log('UI: Fetch error: $e');
@@ -334,18 +341,25 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Future<void> _handleReadReceipt(Map<String, dynamic> receipt, String from) async {
     final messageUID = receipt['message_uid'];
     if (messageUID != null) {
-      LoggerService.log('Read receipt for message $messageUID from $from');
+      LoggerService.log('📖 Read receipt: message=$messageUID from=$from');
       
       // Обновляем статус сообщения на 'read'
-      await StorageService.updateMessageStatus(widget.email, messageUID, 'read');
+      final updated = await StorageService.updateMessageStatus(widget.email, messageUID, 'read');
       
-      LoggerService.log('Message $messageUID marked as read');
+      if (updated) {
+        LoggerService.log('📖 Message $messageUID status updated to READ in DB');
+      } else {
+        LoggerService.log('📖 WARNING: Failed to update message $messageUID status');
+      }
       
       // Обновляем UI
       if (mounted) {
         await _loadContacts();
         setState(() {});
+        LoggerService.log('📖 UI updated after read receipt');
       }
+    } else {
+      LoggerService.log('📖 WARNING: Read receipt without message_uid');
     }
   }
 

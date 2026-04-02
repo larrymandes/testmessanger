@@ -220,17 +220,18 @@ class StorageService {
         .toList();
   }
 
-  static Future<void> updateMessageStatus(
+  static Future<bool> updateMessageStatus(
     String accountEmail,
     String uid,
     String status,
   ) async {
-    await _database!.update(
+    final count = await _database!.update(
       'messages',
       {'status': status},
       where: 'account_email = ? AND uid = ?',
       whereArgs: [accountEmail, uid],
     );
+    return count > 0;
   }
 
   static Future<void> markMessageReadSent(

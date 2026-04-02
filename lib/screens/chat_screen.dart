@@ -60,12 +60,17 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _loadMessages() async {
-    LoggerService.log('ChatScreen: _loadMessages() called');
+    final startTime = DateTime.now();
+    LoggerService.log('ChatScreen: _loadMessages() called at ${startTime.hour}:${startTime.minute}:${startTime.second}.${startTime.millisecond}');
+    
     final messages = await StorageService.getMessages(
       widget.myEmail,
       widget.contactEmail,
     );
-    LoggerService.log('ChatScreen: Loaded ${messages.length} messages from DB');
+    
+    final afterDbTime = DateTime.now();
+    final dbDuration = afterDbTime.difference(startTime).inMilliseconds;
+    LoggerService.log('ChatScreen: Loaded ${messages.length} messages from DB in ${dbDuration}ms');
 
     // Сортируем по timestamp (новые внизу для чата)
     messages.sort((a, b) => a['timestamp'].compareTo(b['timestamp']));
@@ -78,7 +83,10 @@ class _ChatScreenState extends State<ChatScreen> {
       setState(() {
         _chatController.setMessages(chatMessages);
       });
-      LoggerService.log('ChatScreen: UI updated!');
+      
+      final endTime = DateTime.now();
+      final totalDuration = endTime.difference(startTime).inMilliseconds;
+      LoggerService.log('ChatScreen: ✅ UI updated in ${totalDuration}ms total (DB: ${dbDuration}ms, UI: ${totalDuration - dbDuration}ms)');
     } else {
       LoggerService.log('ChatScreen: NOT mounted, cannot update UI');
     }
@@ -88,9 +96,15 @@ class _ChatScreenState extends State<ChatScreen> {
     final timestamp = DateTime.fromMillisecondsSinceEpoch(msg['timestamp']);
     final isSent = msg['sent'] == 1 || msg['sent'] == true;
     final status = msg['status'] ?? 'sent';
+    final uid = msg['uid'] ?? msg['id'].toString();
+    
+    // Логируем статус для отладки read receipts
+    if (isSent) {
+      LoggerService.log('ChatScreen: Message $uid status="$status" (sent=${isSent})');
+    }
     
     return TextMessage(
-      id: msg['uid'] ?? msg['id'].toString(),
+      id: uid,
       authorId: isSent ? widget.myEmail : widget.contactEmail,
       createdAt: timestamp,
       text: msg['text'],
