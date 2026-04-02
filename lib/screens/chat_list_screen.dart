@@ -179,10 +179,21 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Future<void> _processMessage(dynamic mimeMessage) async {
+    final startTime = DateTime.now();
     try {
       final from = mimeMessage.from?.first?.email ?? '';
       final uid = mimeMessage.uid ?? 0;
       final messageId = mimeMessage.decodeHeaderValue('message-id') ?? '';
+      
+      // Пропускаем битые
+      if (uid == 0) {
+        return;
+      }
+      
+      // БЫСТРАЯ проверка - уже обработано?
+      if (await StorageService.isUIDProcessed(widget.email, uid)) {
+        return;
+      }
       
       // ВАЖНО: Получаем RAW body без декодирования переносов строк
       String body = '';
@@ -199,43 +210,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
       // Убираем все переносы строк и пробелы из JSON
       body = body.replaceAll(RegExp(r'\s+'), '');
       
-      LoggerService.log('Body length: ${body.length}');
-      
-      // Пропускаем битые
-      if (uid == 0) {
-        LoggerService.log('UID=0, skipping');
-        return;
-      }
-      
-      // Дедупликация по Message-ID (как Delta Chat)
-      if (messageId.isNotEmpty) {
-        if (await StorageService.isMessageIdProcessed(widget.email, messageId)) {
-          LoggerService.log('Message-ID already processed: $messageId');
-          await StorageService.addProcessedUID(widget.email, uid);
-          await _emailService.markMessageAsSeen(uid);
-          return;
-        }
-      }
-      
-      // Проверяем не обработано ли по UID
-      if (await StorageService.isUIDProcessed(widget.email, uid)) {
-        LoggerService.log('UID=$uid already processed');
-        return;
-      }
-      
-      LoggerService.log('Processing UID=$uid from $from');
-      
       // Парсим JSON
       Map<String, dynamic> encrypted;
       try {
         encrypted = jsonDecode(body) as Map<String, dynamic>;
-        LoggerService.log('Body is valid JSON');
       } catch (e) {
-        LoggerService.log('Not JSON, error: $e');
+        // Не JSON - помечаем и пропускаем
         await StorageService.addProcessedUID(widget.email, uid);
-        if (messageId.isNotEmpty) {
-          await StorageService.addProcessedMessageId(widget.email, messageId);
-        }
         await _emailService.markMessageAsSeen(uid);
         return;
       }
@@ -247,7 +228,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
           encrypted: encrypted.map((k, v) => MapEntry(k, v.toString())),
           myKeyPair: _myKeyPair!,
         );
-        LoggerService.log('Decrypted ok');
+      } catch (e) {
+        // Не расшифровалось (чужое письмо) - помечаем и пропускаем
+        await StorageService.addProcessedUID(widget.email, uid);
+        await _emailService.markMessageAsSeen(uid);
+        return;
+      }
       } catch (e) {
         LoggerService.log('Decryption failed (wrong key)');
         await StorageService.addProcessedUID(widget.email, uid);
@@ -261,22 +247,20 @@ class _ChatListScreenState extends State<ChatListScreen> {
       // Обрабатываем
       try {
         final parsed = jsonDecode(plaintext);
-        
-        LoggerService.log('Message type: ${parsed['type'] ?? 'text'}');
+      
+      // Обрабатываем
+      try {
+        final parsed = jsonDecode(plaintext);
         
         if (parsed['type'] == 'invite') {
-          LoggerService.log('Processing invite...');
           await _handleInvite(parsed, from);
         } else if (parsed['type'] == 'read_receipt') {
-          LoggerService.log('Processing read receipt...');
           await _handleReadReceipt(parsed, from);
         } else if (parsed['text'] != null) {
-          LoggerService.log('Processing text message...');
           await _handleTextMessage(parsed, from, uid, messageId);
         }
       } catch (e) {
         // Старый формат
-        LoggerService.log('Old format, treating as text');
         await _handleTextMessage({'text': plaintext, 'uid': uid.toString()}, from, uid, messageId);
       }
       
@@ -286,6 +270,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
         await StorageService.addProcessedMessageId(widget.email, messageId);
       }
       await _emailService.markMessageAsSeen(uid);
+      
+      final duration = DateTime.now().difference(startTime).inMilliseconds;
+      if (duration > 100) {
+        LoggerService.log('⚠️ Slow message processing: UID=$uid took ${duration}ms');
+      }
       
     } catch (e) {
       LoggerService.log('Process error: $e');
