@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import '../services/storage_service.dart';
+import '../services/crypto_service.dart';
 import '../theme/app_theme.dart';
 import 'account_select_screen.dart';
+import 'logs_screen.dart';
 
 class SettingsTab extends StatefulWidget {
   final String email;
@@ -100,6 +102,17 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
             _buildSection(
               title: 'О ПРИЛОЖЕНИИ',
               items: [
+                _buildSettingsItem(
+                  icon: CupertinoIcons.doc_text,
+                  title: 'Логи',
+                  subtitle: 'Просмотр системных логов',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      CupertinoPageRoute(builder: (context) => const LogsScreen()),
+                    );
+                  },
+                ),
                 _buildSettingsItem(
                   icon: CupertinoIcons.info,
                   title: 'Secure Messenger',

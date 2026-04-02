@@ -291,69 +291,147 @@ class EmailService {
     required String encryptedPayload,
     bool bccToSelf = true,
   }) async {
-    final uniqueId = DateTime.now().microsecondsSinceEpoch;
+    final startTime = DateTime.now();
+    LoggerService.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    LoggerService.log('SMTP: Starting send to $toEmail');
+    LoggerService.log('SMTP: Payload size: ${encryptedPayload.length} bytes');
+    
     SmtpClient? client;
     
     try {
-      LoggerService.log('SMTP[$uniqueId]: Creating client');
+      // 1. Создание клиента
+      LoggerService.log('SMTP [1/9]: Creating SmtpClient instance');
+      client = SmtpClient('enough_mail', isLogEnabled: false);
+      LoggerService.log('SMTP [1/9]: ✓ Client created');
       
-      // Создаём ПОЛНОСТЬЮ новый клиент с уникальным именем
-      client = SmtpClient('msg_$uniqueId', isLogEnabled: false);
-      
-      LoggerService.log('SMTP[$uniqueId]: Connecting');
-      await client.connectToServer(smtpServer, smtpPort, isSecure: false);
-      
-      LoggerService.log('SMTP[$uniqueId]: EHLO');
-      await client.ehlo();
-      
-      LoggerService.log('SMTP[$uniqueId]: STARTTLS');
-      await client.startTls();
-      
-      LoggerService.log('SMTP[$uniqueId]: AUTH');
-      if (client.serverInfo.supportsAuth(AuthMechanism.plain)) {
-        await client.authenticate(email, password, AuthMechanism.plain);
-      } else if (client.serverInfo.supportsAuth(AuthMechanism.login)) {
-        await client.authenticate(email, password, AuthMechanism.login);
-      } else {
-        throw Exception('No auth');
+      // 2. Подключение
+      LoggerService.log('SMTP [2/9]: Connecting to $smtpServer:$smtpPort (TLS: false)');
+      try {
+        await client.connectToServer(smtpServer, smtpPort, isSecure: false);
+        LoggerService.log('SMTP [2/9]: ✓ Connected');
+      } catch (e) {
+        LoggerService.log('SMTP [2/9]: ✗ Connection failed: $e');
+        LoggerService.log('SMTP [2/9]: Error type: ${e.runtimeType}');
+        rethrow;
       }
       
-      LoggerService.log('SMTP[$uniqueId]: Authenticated');
+      // 3. EHLO
+      LoggerService.log('SMTP [3/9]: Sending EHLO');
+      try {
+        await client.ehlo();
+        LoggerService.log('SMTP [3/9]: ✓ EHLO accepted');
+        LoggerService.log('SMTP [3/9]: Server capabilities: ${client.serverInfo.capabilities}');
+      } catch (e) {
+        LoggerService.log('SMTP [3/9]: ✗ EHLO failed: $e');
+        rethrow;
+      }
+      
+      // 4. STARTTLS
+      LoggerService.log('SMTP [4/9]: Starting TLS upgrade');
+      try {
+        await client.startTls();
+        LoggerService.log('SMTP [4/9]: ✓ TLS established');
+      } catch (e) {
+        LoggerService.log('SMTP [4/9]: ✗ STARTTLS failed: $e');
+        rethrow;
+      }
+      
+      // 5. Аутентификация
+      LoggerService.log('SMTP [5/9]: Authenticating as $email');
+      try {
+        if (client.serverInfo.supportsAuth(AuthMechanism.plain)) {
+          LoggerService.log('SMTP [5/9]: Using AUTH PLAIN');
+          await client.authenticate(email, password, AuthMechanism.plain);
+        } else if (client.serverInfo.supportsAuth(AuthMechanism.login)) {
+          LoggerService.log('SMTP [5/9]: Using AUTH LOGIN');
+          await client.authenticate(email, password, AuthMechanism.login);
+        } else {
+          LoggerService.log('SMTP [5/9]: ✗ No supported auth mechanism');
+          throw Exception('No supported auth mechanism');
+        }
+        LoggerService.log('SMTP [5/9]: ✓ Authenticated');
+      } catch (e) {
+        LoggerService.log('SMTP [5/9]: ✗ Auth failed: $e');
+        rethrow;
+      }
 
+      // 6. Генерация Message-ID
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final random = DateTime.now().microsecond;
       final messageId = '<$timestamp.$random@${email.split('@')[1]}>';
+      LoggerService.log('SMTP [6/9]: Generated Message-ID: $messageId');
       
-      final builder = MessageBuilder()
-        ..from = [MailAddress('', email)]
-        ..to = [MailAddress('', toEmail)]
-        ..subject = '[chat]'
-        ..text = encryptedPayload;
-      
-      if (bccToSelf) {
-        builder.bcc = [MailAddress('', email)];
+      // 7. Построение сообщения
+      LoggerService.log('SMTP [7/9]: Building MIME message');
+      try {
+        final builder = MessageBuilder()
+          ..from = [MailAddress('', email)]
+          ..to = [MailAddress('', toEmail)]
+          ..subject = '[chat]'
+          ..text = encryptedPayload;
+        
+        if (bccToSelf) {
+          builder.bcc = [MailAddress('', email)];
+          LoggerService.log('SMTP [7/9]: BCC to self enabled');
+        }
+        
+        builder.setHeader('Message-ID', messageId);
+        final message = builder.buildMimeMessage();
+        LoggerService.log('SMTP [7/9]: ✓ Message built (${message.toString().length} bytes)');
+        
+        // 8. Отправка
+        LoggerService.log('SMTP [8/9]: Sending message via SMTP');
+        try {
+          await client.sendMessage(message);
+          LoggerService.log('SMTP [8/9]: ✓ Message sent');
+        } catch (e) {
+          LoggerService.log('SMTP [8/9]: ✗ Send failed: $e');
+          LoggerService.log('SMTP [8/9]: Error type: ${e.runtimeType}');
+          LoggerService.log('SMTP [8/9]: Stack trace: ${StackTrace.current}');
+          rethrow;
+        }
+        
+        // 9. QUIT
+        LoggerService.log('SMTP [9/9]: Sending QUIT');
+        try {
+          await client.quit();
+          LoggerService.log('SMTP [9/9]: ✓ QUIT accepted');
+        } catch (e) {
+          LoggerService.log('SMTP [9/9]: ✗ QUIT failed (non-critical): $e');
+          // Не бросаем ошибку - сообщение уже отправлено
+        }
+        
+        final duration = DateTime.now().difference(startTime);
+        LoggerService.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        LoggerService.log('SMTP: ✅ SUCCESS in ${duration.inMilliseconds}ms');
+        LoggerService.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        
+        return messageId;
+        
+      } catch (e) {
+        LoggerService.log('SMTP [7/9]: ✗ Message build failed: $e');
+        rethrow;
       }
       
-      builder.setHeader('Message-ID', messageId);
-      final message = builder.buildMimeMessage();
-
-      LoggerService.log('SMTP[$uniqueId]: Sending');
-      await client.sendMessage(message);
-      LoggerService.log('SMTP[$uniqueId]: Sent');
-      
-      await client.quit();
-      LoggerService.log('SMTP[$uniqueId]: Closed');
-      
-      return messageId;
-      
-    } catch (e, stack) {
-      LoggerService.log('SMTP[$uniqueId] ERROR: $e');
+    } catch (e, stackTrace) {
+      final duration = DateTime.now().difference(startTime);
+      LoggerService.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      LoggerService.log('SMTP: ❌ FAILED after ${duration.inMilliseconds}ms');
+      LoggerService.log('SMTP: Error: $e');
+      LoggerService.log('SMTP: Type: ${e.runtimeType}');
+      LoggerService.log('SMTP: Stack: $stackTrace');
+      LoggerService.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       rethrow;
     } finally {
+      // Всегда закрываем соединение
       if (client != null) {
+        LoggerService.log('SMTP: Cleanup - disconnecting client');
         try {
           await client.disconnect();
-        } catch (_) {}
+          LoggerService.log('SMTP: Cleanup - ✓ disconnected');
+        } catch (e) {
+          LoggerService.log('SMTP: Cleanup - disconnect error: $e');
+        }
       }
     }
   }
