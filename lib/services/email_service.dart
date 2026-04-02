@@ -45,11 +45,18 @@ class EmailService {
       final mailbox = await _imapClient!.selectInbox();
       
       _lastKnownExists = mailbox.messagesExists;
-      // НЕ устанавливаем _lastUidNext здесь! Он должен браться из БД через lastSeenUid
-      // _lastUidNext будет обновлён в fetchNewMessages() после успешного fetch
       _uidValidity = mailbox.uidValidity ?? 0;
+      final currentUidNext = mailbox.uidNext ?? 0;
       
-      LoggerService.log('IMAP: Connected, EXISTS=$_lastKnownExists, UIDNEXT=${mailbox.uidNext}, UIDVALIDITY=$_uidValidity');
+      LoggerService.log('IMAP: Connected, EXISTS=$_lastKnownExists, UIDNEXT=$currentUidNext, UIDVALIDITY=$_uidValidity');
+      
+      // При первом запуске устанавливаем sync point
+      final maxUID = await StorageService.getMaxProcessedUID(email);
+      if (maxUID == 0 && currentUidNext > 1) {
+        await StorageService.addProcessedUID(email, currentUidNext - 1);
+        LoggerService.log('IMAP: First run, sync point set to ${currentUidNext - 1}');
+        LoggerService.log('IMAP: Will process only NEW messages from now on');
+      }
       
       // Запускаем IDLE только если ещё не запущен
       if (!_isIdleRunning) {
