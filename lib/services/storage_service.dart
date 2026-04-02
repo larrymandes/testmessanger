@@ -234,6 +234,17 @@ class StorageService {
     return count > 0;
   }
 
+  static Future<void> deleteMessage(
+    String accountEmail,
+    String uid,
+  ) async {
+    await _database!.delete(
+      'messages',
+      where: 'account_email = ? AND uid = ?',
+      whereArgs: [accountEmail, uid],
+    );
+  }
+
   static Future<void> markMessageReadSent(
     String accountEmail,
     String uid,

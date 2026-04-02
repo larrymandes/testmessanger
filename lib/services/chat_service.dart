@@ -75,6 +75,16 @@ class ChatService {
     _messageService.removeUICallback(callback);
   }
   
+  /// Регистрация callback для обновления статуса сообщений
+  void addStatusUpdateCallback(Function(List<String> uids, String status) callback) {
+    _messageService.addStatusUpdateCallback(callback);
+  }
+  
+  /// Удаление callback для обновления статуса
+  void removeStatusUpdateCallback(Function(List<String> uids, String status) callback) {
+    _messageService.removeStatusUpdateCallback(callback);
+  }
+  
   /// Отправка сообщения
   Future<String> sendMessage({
     required String toEmail,

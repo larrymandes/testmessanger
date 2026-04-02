@@ -18,6 +18,9 @@ class MessageService {
   // Callbacks для уведомления UI
   final List<Function()> _uiCallbacks = [];
   
+  // Callbacks для обновления статуса сообщений (без перезагрузки)
+  final List<Function(List<String> uids, String status)> _statusUpdateCallbacks = [];
+  
   MessageService({
     required this.accountEmail,
     required this.keyPair,
@@ -35,6 +38,20 @@ class MessageService {
   void removeUICallback(Function() callback) {
     _uiCallbacks.remove(callback);
     LoggerService.log('MessageService: UI callback removed (total: ${_uiCallbacks.length})');
+  }
+  
+  /// Регистрация callback для обновления статуса сообщений
+  void addStatusUpdateCallback(Function(List<String> uids, String status) callback) {
+    if (!_statusUpdateCallbacks.contains(callback)) {
+      _statusUpdateCallbacks.add(callback);
+      LoggerService.log('MessageService: Status update callback registered (total: ${_statusUpdateCallbacks.length})');
+    }
+  }
+  
+  /// Удаление callback для обновления статуса
+  void removeStatusUpdateCallback(Function(List<String> uids, String status) callback) {
+    _statusUpdateCallbacks.remove(callback);
+    LoggerService.log('MessageService: Status update callback removed (total: ${_statusUpdateCallbacks.length})');
   }
   
   /// Обработка новых писем (вызывается из EmailService)
@@ -213,12 +230,33 @@ class MessageService {
     LoggerService.log('📖 Read receipt: ${uids.length} messages from=$from');
     
     int updated = 0;
+    final updatedUIDs = <String>[];
     for (final uid in uids) {
       final success = await StorageService.updateMessageStatus(accountEmail, uid.toString(), 'read');
-      if (success) updated++;
+      if (success) {
+        updated++;
+        updatedUIDs.add(uid.toString());
+      }
     }
     
     LoggerService.log('📖 Updated $updated/${uids.length} messages to READ');
+    
+    // Уведомляем UI об обновлении статуса (без полной перезагрузки)
+    if (updatedUIDs.isNotEmpty) {
+      _notifyStatusUpdate(updatedUIDs, 'read');
+    }
+  }
+  
+  /// Уведомление UI об обновлении статуса сообщений
+  void _notifyStatusUpdate(List<String> uids, String status) {
+    LoggerService.log('MessageService: Notifying ${_statusUpdateCallbacks.length} status update callbacks for ${uids.length} messages');
+    for (final callback in _statusUpdateCallbacks) {
+      try {
+        callback(uids, status);
+      } catch (e) {
+        LoggerService.log('MessageService: Status update callback error: $e');
+      }
+    }
   }
   
   Future<void> _handleTextMessage(Map<String, dynamic> message, String from, int uid, String messageId) async {

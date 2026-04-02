@@ -27,13 +27,14 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _chatController = InMemoryChatController();
   late Function() _messageCallback; // Сохраняем ссылку на callback
+  late Function(List<String>, String) _statusUpdateCallback; // Callback для обновления статуса
 
   @override
   void initState() {
     super.initState();
     LoggerService.log('ChatScreen: initState for ${widget.contactEmail}');
     
-    // Создаём callback и регистрируем
+    // Создаём callback для новых сообщений и регистрируем
     _messageCallback = () {
       LoggerService.log('ChatScreen: Callback triggered for ${widget.contactEmail}!');
       if (mounted) {
@@ -45,8 +46,17 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     };
     
+    // Создаём callback для обновления статуса (без перезагрузки)
+    _statusUpdateCallback = (List<String> uids, String status) {
+      LoggerService.log('ChatScreen: Status update callback for ${uids.length} messages to "$status"');
+      if (mounted) {
+        _updateMessageStatuses(uids, status);
+      }
+    };
+    
     widget.chatService.addUICallback(_messageCallback);
-    LoggerService.log('ChatScreen: Callback registered');
+    widget.chatService.addStatusUpdateCallback(_statusUpdateCallback);
+    LoggerService.log('ChatScreen: Callbacks registered');
     
     // Загружаем сообщения из БД
     _loadMessages();
@@ -85,6 +95,38 @@ class _ChatScreenState extends State<ChatScreen> {
       LoggerService.log('ChatScreen: NOT mounted, cannot update UI');
     }
   }
+  
+  /// Обновление статуса сообщений без перезагрузки
+  void _updateMessageStatuses(List<String> uids, String status) {
+    LoggerService.log('ChatScreen: Updating ${uids.length} messages to status "$status"');
+    
+    final messages = _chatController.messages;
+    final now = DateTime.now();
+    
+    for (final uid in uids) {
+      final messageIndex = messages.indexWhere((m) => m.id == uid);
+      if (messageIndex == -1) continue;
+      
+      final oldMessage = messages[messageIndex];
+      if (oldMessage is! TextMessage) continue;
+      
+      // Создаём обновлённое сообщение
+      final updatedMessage = oldMessage.copyWith(
+        seenAt: status == 'read' ? now : oldMessage.seenAt,
+        sentAt: status == 'sent' ? now : oldMessage.sentAt,
+        failedAt: status == 'error' ? now : null,
+        metadata: status == 'sending' 
+          ? {'sending': true}
+          : status == 'error'
+            ? {'error': true}
+            : null,
+      );
+      
+      // Обновляем сообщение в контроллере (без перезагрузки всего списка)
+      _chatController.updateMessage(oldMessage, updatedMessage);
+      LoggerService.log('ChatScreen: ✅ Message $uid updated to "$status"');
+    }
+  }
 
   Message _createMessage(Map<String, dynamic> msg) {
     final timestamp = DateTime.fromMillisecondsSinceEpoch(msg['timestamp']);
@@ -103,9 +145,16 @@ class _ChatScreenState extends State<ChatScreen> {
       createdAt: timestamp,
       text: msg['text'],
       // Отправленные: показываем галочки
-      sentAt: isSent && status != 'sending' ? timestamp : null,
+      sentAt: isSent && status == 'sent' ? timestamp : null,
       seenAt: isSent && status == 'read' ? timestamp : null,
-      metadata: status == 'sending' ? {'sending': true} : null,
+      // Ошибка отправки
+      failedAt: isSent && status == 'error' ? timestamp : null,
+      // Метаданные для визуального отображения
+      metadata: status == 'sending' 
+        ? {'sending': true} 
+        : status == 'error' 
+          ? {'error': true} 
+          : null,
     );
   }
 
@@ -198,10 +247,15 @@ class _ChatScreenState extends State<ChatScreen> {
         recipientEmail: widget.contactEmail,
       );
 
-      // Отправляем и получаем Message-ID
+      // Отправляем с таймаутом 30 секунд
       final messageId = await widget.chatService.sendMessage(
         toEmail: widget.contactEmail,
         encryptedPayload: jsonEncode(encrypted),
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Таймаут отправки (30 сек)');
+        },
       );
 
       // Обновляем статус на "sent" и добавляем Message-ID
@@ -227,9 +281,12 @@ class _ChatScreenState extends State<ChatScreen> {
       
       final updatedMessage = chatMessage.copyWith(
         failedAt: now,
-        metadata: null,
+        metadata: {'error': true},
       );
       _chatController.updateMessage(chatMessage, updatedMessage);
+      
+      // Перезагружаем чтобы показать красное сообщение
+      await _loadMessages();
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -311,27 +368,135 @@ class _ChatScreenState extends State<ChatScreen> {
     LongPressStartDetails? details,
     int? index,
   }) {
-    // Копируем текст сообщения
-    if (message is TextMessage) {
-      Clipboard.setData(ClipboardData(text: message.text));
-      
-      // Показываем уведомление
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✓ Текст скопирован'),
-          duration: Duration(seconds: 1),
-          behavior: SnackBarBehavior.floating,
+    if (message is! TextMessage) return;
+    
+    final isMyMessage = message.authorId == widget.chatService.email;
+    final hasError = message.metadata?['error'] == true;
+    final isSending = message.metadata?['sending'] == true;
+    
+    // Показываем меню действий
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1a2332),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Копировать текст
+            ListTile(
+              leading: const Icon(Icons.copy, color: Colors.white70),
+              title: const Text('Копировать текст', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: message.text));
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('✓ Текст скопирован'),
+                    duration: Duration(seconds: 1),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+            ),
+            
+            // Повторить отправку (только для ошибочных своих сообщений)
+            if (isMyMessage && hasError)
+              ListTile(
+                leading: const Icon(Icons.refresh, color: Colors.orange),
+                title: const Text('Повторить отправку', style: TextStyle(color: Colors.orange)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _retryMessage(message);
+                },
+              ),
+            
+            // Удалить (только для ошибочных или отправляющихся своих сообщений)
+            if (isMyMessage && (hasError || isSending))
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Удалить', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _deleteMessage(message);
+                },
+              ),
+            
+            const SizedBox(height: 8),
+          ],
         ),
-      );
+      ),
+    );
+  }
+  
+  Future<void> _retryMessage(TextMessage message) async {
+    try {
+      // Удаляем старое сообщение с ошибкой
+      await StorageService.deleteMessage(widget.chatService.email, message.id);
       
-      LoggerService.log('Message copied: ${message.text}');
+      // Отправляем заново
+      _handleSendPressed(message.text);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🔄 Повторная отправка...'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      LoggerService.log('Retry error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✗ Ошибка: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+  
+  Future<void> _deleteMessage(TextMessage message) async {
+    try {
+      await StorageService.deleteMessage(widget.chatService.email, message.id);
+      await _loadMessages();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✓ Сообщение удалено'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      LoggerService.log('Delete error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✗ Ошибка удаления: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
   @override
   void dispose() {
-    LoggerService.log('ChatScreen: dispose() - removing callback');
+    LoggerService.log('ChatScreen: dispose() - removing callbacks');
     widget.chatService.removeUICallback(_messageCallback);
+    widget.chatService.removeStatusUpdateCallback(_statusUpdateCallback);
     _chatController.dispose();
     super.dispose();
   }

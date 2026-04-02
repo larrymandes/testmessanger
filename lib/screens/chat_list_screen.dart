@@ -102,14 +102,11 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
       
       LoggerService.log('ChatListScreen: Initialization complete!');
       
-      // ВАЖНО: Делаем fetch при старте (на случай если были новые сообщения пока приложение было закрыто)
-      // Делаем ПОСЛЕ инициализации чтобы не блокировать UI
+      // ВАЖНО: Делаем fetch при старте СРАЗУ (синхронно)
+      // Это гарантирует что сообщения которые пришли пока приложение было закрыто - будут получены
       LoggerService.log('ChatListScreen: Initial fetch on startup...');
-      _chatService.fetchAndProcessNewMessages().then((_) {
-        LoggerService.log('ChatListScreen: Initial fetch completed!');
-      }).catchError((e) {
-        LoggerService.log('ChatListScreen: Initial fetch error: $e');
-      });
+      await _chatService.fetchAndProcessNewMessages();
+      LoggerService.log('ChatListScreen: Initial fetch completed!');
       
     } catch (e) {
       setState(() {
