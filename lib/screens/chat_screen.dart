@@ -305,7 +305,12 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  void _handleMessageLongPress(Message message) {
+  void _handleMessageLongPress(
+    BuildContext context,
+    Message message, {
+    LongPressStartDetails? details,
+    int? index,
+  }) {
     // Копируем текст сообщения
     if (message is TextMessage) {
       Clipboard.setData(ClipboardData(text: message.text));
