@@ -286,34 +286,11 @@ class EmailService {
       
       // ВАЖНО: Используем lastSeenUid из БД, а НЕ _lastUidNext!
       // _lastUidNext используется только для IDLE событий
-      
-      // При первом запуске (lastSeenUid=0) устанавливаем точку отсчёта
-      // Обрабатываем только НОВЫЕ письма после этого момента (как Delta Chat)
-      if (lastSeenUid == 0) {
-        LoggerService.log('First run: setting initial sync point to UIDNEXT=${currentUidNext - 1}');
-        LoggerService.log('First run: will process only NEW messages from now on');
-        
-        // Устанавливаем точку отсчёта (текущий UIDNEXT - 1)
-        // Все письма ДО этого момента игнорируются
-        if (currentUidNext > 1) {
-          await StorageService.addProcessedUID(email, currentUidNext - 1);
-        }
-        
-        // Обновляем _lastUidNext для IDLE
-        _lastUidNext = currentUidNext;
-        
-        fetchStopwatch.stop();
-        LoggerService.log('First run: sync point set, ready to receive new messages');
-        
-        _callbackPending = false;
-        return []; // Возвращаем пустой список - старые письма не обрабатываем
-      }
-      
       final startUid = lastSeenUid + 1;
       
-      // Если нет новых сообщений (startUid >= currentUidNext)
-      if (startUid >= currentUidNext) {
-        LoggerService.log('No new messages (lastSeenUid=$lastSeenUid, UIDNEXT=$currentUidNext)');
+      // Если нет новых сообщений (startUid > currentUidNext)
+      if (startUid > currentUidNext) {
+        LoggerService.log('No new messages (lastSeenUid=$lastSeenUid, startUid=$startUid, UIDNEXT=$currentUidNext)');
         return [];
       }
       

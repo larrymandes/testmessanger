@@ -98,6 +98,19 @@ class ChatService {
     
     try {
       final maxUID = await StorageService.getMaxProcessedUID(email);
+      
+      // При первом запуске устанавливаем sync point
+      if (maxUID == 0) {
+        LoggerService.log('ChatService: First run, setting sync point');
+        final currentUidNext = await _emailService.getCurrentUidNext();
+        if (currentUidNext > 1) {
+          await StorageService.addProcessedUID(email, currentUidNext - 1);
+          LoggerService.log('ChatService: Sync point set to ${currentUidNext - 1}');
+          LoggerService.log('ChatService: Will process only NEW messages from now on');
+        }
+        return; // Не fetch'им старые письма
+      }
+      
       final newMessages = await _emailService.fetchNewMessages(lastSeenUid: maxUID);
       
       if (newMessages.isNotEmpty) {
