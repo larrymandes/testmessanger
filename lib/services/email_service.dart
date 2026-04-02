@@ -76,6 +76,18 @@ class EmailService {
     LoggerService.log('EmailService: Callback removed (total: ${_callbacks.length})');
   }
 
+  // Уведомляем callbacks БЕЗ fetch (для read receipts и т.д.)
+  void notifyCallbacks() {
+    LoggerService.log('EmailService: Notifying ${_callbacks.length} callbacks (no fetch)');
+    for (int i = 0; i < _callbacks.length; i++) {
+      try {
+        _callbacks[i]();
+      } catch (e) {
+        LoggerService.log('EmailService: Callback #${i + 1} error: $e');
+      }
+    }
+  }
+
   // Фоновый fetch loop (как Delta Chat) - работает независимо от UI
   // Это BACKUP на случай если IDLE не сработал
   void _startBackgroundFetchLoop() {
@@ -301,10 +313,12 @@ class EmailService {
         }
       } else {
         // Обычный fetch если писем мало
-        LoggerService.log('Starting UID FETCH of message set "$startUid:*"');
+        // КАК DELTA CHAT: Fetch только НОВЫЕ письма (startUid до currentUidNext-1)
+        final endUid = currentUidNext - 1;
+        LoggerService.log('Starting UID FETCH of message set "$startUid:$endUid"');
         
-        // Используем MessageSequence для диапазона UID
-        final sequence = MessageSequence.fromRangeToLast(startUid);
+        // Используем MessageSequence для конкретного диапазона (НЕ до конца!)
+        final sequence = MessageSequence.fromRange(startUid, endUid);
         final fetchResult = await _imapClient!.uidFetchMessages(
           sequence,
           'BODY.PEEK[]',

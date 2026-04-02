@@ -126,17 +126,17 @@ class _ChatScreenState extends State<ChatScreen> {
       !m['sent'] && !m['readSent'] && m['uid'] != null
     ).toList();
 
-    for (final msg in unread) {
-      await _sendReadReceipt(msg['uid']);
-      await StorageService.markMessageReadSent(widget.myEmail, msg['uid']);
-    }
-  }
+    if (unread.isEmpty) return;
+    
+    LoggerService.log('ChatScreen: Sending ${unread.length} read receipts');
 
-  Future<void> _sendReadReceipt(String messageUID) async {
+    // Батчинг: отправляем все UID одним сообщением
+    final uids = unread.map((m) => m['uid']).toList();
+    
     try {
       final receipt = jsonEncode({
         'type': 'read_receipt',
-        'message_uid': messageUID,
+        'message_uids': uids, // Массив вместо одного UID
       });
 
       final encrypted = await CryptoService.encryptMessage(
@@ -150,8 +150,15 @@ class _ChatScreenState extends State<ChatScreen> {
         toEmail: widget.contactEmail,
         encryptedPayload: jsonEncode(encrypted),
       );
+      
+      // Помечаем все как отправленные
+      for (final msg in unread) {
+        await StorageService.markMessageReadSent(widget.myEmail, msg['uid']);
+      }
+      
+      LoggerService.log('ChatScreen: ✅ ${unread.length} read receipts sent');
     } catch (e) {
-      LoggerService.log('Send read receipt error: $e');
+      LoggerService.log('Send read receipts error: $e');
     }
   }
 

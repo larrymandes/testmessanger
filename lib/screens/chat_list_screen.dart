@@ -179,21 +179,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Future<void> _processMessage(dynamic mimeMessage) async {
-    final startTime = DateTime.now();
     try {
       final from = mimeMessage.from?.first?.email ?? '';
       final uid = mimeMessage.uid ?? 0;
       final messageId = mimeMessage.decodeHeaderValue('message-id') ?? '';
       
       // Пропускаем битые
-      if (uid == 0) {
-        return;
-      }
-      
-      // БЫСТРАЯ проверка - уже обработано?
-      if (await StorageService.isUIDProcessed(widget.email, uid)) {
-        return;
-      }
+      if (uid == 0) return;
       
       // ВАЖНО: Получаем RAW body без декодирования переносов строк
       String body = '';
@@ -207,6 +199,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
         body = mimeMessage.decodeTextPlainPart() ?? '';
       }
       
+      LoggerService.log('Processing UID=$uid from $from');
+      LoggerService.log('Body length: ${body.length}');
+      
       // Убираем все переносы строк и пробелы из JSON
       body = body.replaceAll(RegExp(r'\s+'), '');
       
@@ -214,6 +209,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       Map<String, dynamic> encrypted;
       try {
         encrypted = jsonDecode(body) as Map<String, dynamic>;
+        LoggerService.log('Body is valid JSON');
       } catch (e) {
         // Не JSON - помечаем и пропускаем
         await StorageService.addProcessedUID(widget.email, uid);
@@ -228,8 +224,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
           encrypted: encrypted.map((k, v) => MapEntry(k, v.toString())),
           myKeyPair: _myKeyPair!,
         );
+        LoggerService.log('Decrypted ok');
       } catch (e) {
         // Не расшифровалось (чужое письмо) - помечаем и пропускаем
+        LoggerService.log('Decryption failed (wrong key)');
         await StorageService.addProcessedUID(widget.email, uid);
         await _emailService.markMessageAsSeen(uid);
         return;
@@ -238,16 +236,21 @@ class _ChatListScreenState extends State<ChatListScreen> {
       // Обрабатываем
       try {
         final parsed = jsonDecode(plaintext);
+        LoggerService.log('Message type: ${parsed['type'] ?? 'text'}');
         
         if (parsed['type'] == 'invite') {
+          LoggerService.log('Processing invite...');
           await _handleInvite(parsed, from);
         } else if (parsed['type'] == 'read_receipt') {
+          LoggerService.log('Processing read receipt...');
           await _handleReadReceipt(parsed, from);
         } else if (parsed['text'] != null) {
+          LoggerService.log('Processing text message...');
           await _handleTextMessage(parsed, from, uid, messageId);
         }
       } catch (e) {
         // Старый формат
+        LoggerService.log('Processing text message...');
         await _handleTextMessage({'text': plaintext, 'uid': uid.toString()}, from, uid, messageId);
       }
       
@@ -257,11 +260,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
         await StorageService.addProcessedMessageId(widget.email, messageId);
       }
       await _emailService.markMessageAsSeen(uid);
-      
-      final duration = DateTime.now().difference(startTime).inMilliseconds;
-      if (duration > 100) {
-        LoggerService.log('⚠️ Slow message processing: UID=$uid took ${duration}ms');
-      }
       
     } catch (e) {
       LoggerService.log('Process error: $e');
@@ -315,28 +313,38 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Future<void> _handleReadReceipt(Map<String, dynamic> receipt, String from) async {
-    final messageUID = receipt['message_uid'];
-    if (messageUID != null) {
-      LoggerService.log('📖 Read receipt: message=$messageUID from=$from');
-      
-      // Обновляем статус сообщения на 'read'
-      final updated = await StorageService.updateMessageStatus(widget.email, messageUID, 'read');
-      
-      if (updated) {
-        LoggerService.log('📖 Message $messageUID status updated to READ in DB');
-      } else {
-        LoggerService.log('📖 WARNING: Failed to update message $messageUID status');
-      }
-      
-      // Обновляем UI
-      if (mounted) {
-        await _loadContacts();
-        setState(() {});
-        LoggerService.log('📖 UI updated after read receipt');
-      }
-    } else {
-      LoggerService.log('📖 WARNING: Read receipt without message_uid');
+    // Поддерживаем как старый формат (message_uid), так и новый (message_uids)
+    final messageUIDs = receipt['message_uids'] as List<dynamic>?;
+    final singleUID = receipt['message_uid'];
+    
+    final uids = messageUIDs ?? (singleUID != null ? [singleUID] : []);
+    
+    if (uids.isEmpty) {
+      LoggerService.log('📖 WARNING: Read receipt without UIDs');
+      return;
     }
+    
+    LoggerService.log('📖 Read receipt: ${uids.length} messages from=$from');
+    
+    int updated = 0;
+    for (final uid in uids) {
+      // Обновляем статус сообщения на 'read'
+      final success = await StorageService.updateMessageStatus(widget.email, uid.toString(), 'read');
+      if (success) updated++;
+    }
+    
+    LoggerService.log('📖 Updated $updated/${uids.length} messages to READ in DB');
+    
+    // Обновляем UI - ВАЖНО: обновляем и ChatListScreen и ChatScreen!
+    if (mounted) {
+      await _loadContacts();
+      setState(() {});
+      LoggerService.log('📖 ChatListScreen UI updated');
+    }
+    
+    // Уведомляем ВСЕ callbacks (включая ChatScreen) чтобы они тоже обновились
+    _emailService.notifyCallbacks();
+    LoggerService.log('📖 All screens notified about read receipts');
   }
 
   Future<void> _handleTextMessage(Map<String, dynamic> message, String from, int uid, String messageId) async {
