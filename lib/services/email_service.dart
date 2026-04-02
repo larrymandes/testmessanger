@@ -287,6 +287,31 @@ class EmailService {
       // _lastUidNext используется только для IDLE событий
       final startUid = lastSeenUid > 0 ? lastSeenUid + 1 : 1;
       
+      // ВАЖНО: При первом запуске (lastSeenUid=0) fetch'им только последние 5 писем!
+      // Это предотвращает загрузку тысяч старых писем
+      if (lastSeenUid == 0 && currentUidNext > 5) {
+        final limitedStartUid = currentUidNext - 5;
+        LoggerService.log('First run: limiting fetch to last 5 messages (UID $limitedStartUid:${currentUidNext - 1})');
+        
+        final sequence = MessageSequence.fromRange(limitedStartUid, currentUidNext - 1);
+        final fetchResult = await _imapClient!.uidFetchMessages(
+          sequence,
+          'BODY.PEEK[]',
+        );
+        
+        messages.addAll(_filterChatMessages(fetchResult.messages, 0));
+        
+        // Обновляем _lastUidNext
+        _lastUidNext = currentUidNext;
+        
+        fetchStopwatch.stop();
+        LoggerService.log('${messages.length} mails read from "INBOX" in ${fetchStopwatch.elapsedMilliseconds}ms.');
+        LoggerService.log('Fetched ${messages.length} new chat messages');
+        
+        _callbackPending = false;
+        return messages;
+      }
+      
       // Если нет новых сообщений (startUid >= currentUidNext)
       if (startUid >= currentUidNext) {
         LoggerService.log('No new messages (lastSeenUid=$lastSeenUid, UIDNEXT=$currentUidNext)');

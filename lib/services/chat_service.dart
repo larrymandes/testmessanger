@@ -50,18 +50,6 @@ class ChatService {
       
       // Fetch новых писем
       final maxUID = await StorageService.getMaxProcessedUID(email);
-      
-      // ВАЖНО: При первом запуске (maxUID=0) НЕ fetch'им старые письма!
-      if (maxUID == 0) {
-        LoggerService.log('ChatService: First run in processor, setting initial UIDNEXT');
-        final currentUidNext = await _emailService.getCurrentUidNext();
-        if (currentUidNext > 0) {
-          await StorageService.addProcessedUID(email, currentUidNext - 1);
-          LoggerService.log('ChatService: Initial UIDNEXT set to ${currentUidNext - 1}');
-        }
-        return;
-      }
-      
       final newMessages = await _emailService.fetchNewMessages(lastSeenUid: maxUID);
       
       // Обрабатываем через MessageService (он сам уведомит UI)
@@ -110,21 +98,6 @@ class ChatService {
     
     try {
       final maxUID = await StorageService.getMaxProcessedUID(email);
-      
-      // ВАЖНО: При первом запуске (maxUID=0) НЕ fetch'им старые письма!
-      // Устанавливаем lastSeenUid в текущий UIDNEXT и fetch'им только новые
-      if (maxUID == 0) {
-        LoggerService.log('ChatService: First run, setting initial UIDNEXT');
-        // Получаем текущий UIDNEXT без fetch
-        final currentUidNext = await _emailService.getCurrentUidNext();
-        if (currentUidNext > 0) {
-          // Сохраняем фиктивный UID чтобы не fetch'ить старые письма
-          await StorageService.addProcessedUID(email, currentUidNext - 1);
-          LoggerService.log('ChatService: Initial UIDNEXT set to ${currentUidNext - 1}');
-        }
-        return;
-      }
-      
       final newMessages = await _emailService.fetchNewMessages(lastSeenUid: maxUID);
       
       if (newMessages.isNotEmpty) {
