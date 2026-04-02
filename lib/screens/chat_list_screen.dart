@@ -60,17 +60,23 @@ class _ChatListScreenState extends State<ChatListScreen> {
       // Подключаемся к IMAP асинхронно (не блокируем UI)
       setState(() => _connectionStatus = 'Подключение...');
       
+      // Устанавливаем callback ДО подключения (чтобы не пропустить события)
+      _emailService.setNewMessageCallback(() {
+        // Вызывается мгновенно при IDLE событии
+        _fetchNewMessages();
+      });
+      
       _emailService.connectImap().then((_) {
         if (mounted) {
           setState(() => _connectionStatus = 'Подключено');
         }
         
-        // Запускаем IDLE listener (не ждём его)
+        // Также слушаем stream (для совместимости)
         _emailService.listenForNewMessages().listen((_) {
           _fetchNewMessages();
         });
         
-        // Получаем новые сообщения
+        // Сразу получаем новые сообщения при запуске
         _fetchNewMessages();
       }).catchError((e) {
         if (mounted) {
@@ -153,8 +159,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
         await _processMessage(mimeMessage);
       }
       
-      if (newMessages.isNotEmpty && mounted) {
+      // ВСЕГДА обновляем список чатов после fetch
+      if (mounted) {
         await _loadContacts();
+        setState(() {});
       }
     } catch (e) {
       LoggerService.log('Fetch error: $e');
@@ -329,10 +337,17 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Future<void> _handleReadReceipt(Map<String, dynamic> receipt, String from) async {
     final messageUID = receipt['message_uid'];
     if (messageUID != null) {
+      LoggerService.log('Read receipt for message $messageUID from $from');
+      
+      // Обновляем статус сообщения на 'read'
       await StorageService.updateMessageStatus(widget.email, messageUID, 'read');
+      
       LoggerService.log('Message $messageUID marked as read');
+      
+      // Обновляем UI
       if (mounted) {
         await _loadContacts();
+        setState(() {});
       }
     }
   }

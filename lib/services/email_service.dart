@@ -18,6 +18,9 @@ class EmailService {
   int _lastKnownExists = 0;
   int _lastUidNext = 0; // Как в Delta Chat - отслеживаем UIDNEXT
   int _uidValidity = 0; // Для проверки что ящик не пересоздан
+  
+  // Callback для уведомления о новых сообщениях (вызывается из IDLE)
+  Function()? _onNewMessageCallback;
 
   EmailService({
     required this.email,
@@ -42,10 +45,47 @@ class EmailService {
       _uidValidity = mailbox.uidValidity ?? 0;
       
       LoggerService.log('IMAP: Connected, EXISTS=$_lastKnownExists, UIDNEXT=$_lastUidNext, UIDVALIDITY=$_uidValidity');
+      
+      // Запускаем фоновый fetch loop (как Delta Chat) - backup каждые 5 минут
+      _startBackgroundFetchLoop();
     } catch (e) {
       _imapClient = null;
       rethrow;
     }
+  }
+
+  // Устанавливаем callback для уведомлений о новых сообщениях
+  void setNewMessageCallback(Function() callback) {
+    _onNewMessageCallback = callback;
+  }
+
+  // Фоновый fetch loop (как Delta Chat) - работает независимо от UI
+  // Это BACKUP на случай если IDLE не сработал
+  void _startBackgroundFetchLoop() {
+    Timer.periodic(const Duration(minutes: 5), (timer) async {
+      if (_imapClient == null || _isFetching) return;
+      
+      try {
+        LoggerService.log('Background fetch: Periodic check (backup)...');
+        final newMessages = await fetchNewMessages(lastSeenUid: 0);
+        
+        if (newMessages.isNotEmpty) {
+          LoggerService.log('Background fetch: Found ${newMessages.length} new messages');
+          
+          // Уведомляем через callback
+          if (_onNewMessageCallback != null) {
+            _onNewMessageCallback!();
+          }
+          
+          // И через stream
+          if (_newMessageController != null && !_newMessageController!.isClosed) {
+            _newMessageController!.add(null);
+          }
+        }
+      } catch (e) {
+        LoggerService.log('Background fetch error: $e');
+      }
+    });
   }
 
   // IMAP IDLE для мгновенных уведомлений (как в Delta Chat)
@@ -82,6 +122,7 @@ class EmailService {
         StreamSubscription<ImapEvent>? subscription;
         final completer = Completer<void>();
         int newExists = _lastKnownExists;
+        bool hadEvent = false;
         
         subscription = _imapClient!.eventBus!.on<ImapEvent>().listen((event) {
           if (event is ImapMessagesExistEvent) {
@@ -90,6 +131,7 @@ class EmailService {
             // Уведомляем только если УВЕЛИЧИЛОСЬ
             if (newExists > _lastKnownExists) {
               LoggerService.log('IDLE: New message! $_lastKnownExists -> $newExists');
+              hadEvent = true;
               if (!completer.isCompleted) {
                 completer.complete();
               }
@@ -121,13 +163,22 @@ class EmailService {
           continue;
         }
         
-        // Если было новое письмо - уведомляем UI
-        if (completer.isCompleted && newExists > _lastKnownExists) {
+        // Обновляем EXISTS
+        if (newExists > _lastKnownExists) {
           _lastKnownExists = newExists;
-          LoggerService.log('IDLE: Notifying UI (EXISTS: $_lastKnownExists)');
-          if (_newMessageController != null && !_newMessageController!.isClosed) {
-            _newMessageController!.add(null);
-          }
+        }
+        
+        // КАК DELTA CHAT: Всегда уведомляем после IDLE
+        LoggerService.log('IDLE: Notifying (had event: $hadEvent)');
+        
+        // Уведомляем через callback (мгновенно)
+        if (_onNewMessageCallback != null) {
+          _onNewMessageCallback!();
+        }
+        
+        // И через stream (для совместимости)
+        if (_newMessageController != null && !_newMessageController!.isClosed) {
+          _newMessageController!.add(null);
         }
         
         // Сразу перезапускаем IDLE (как Delta Chat - не ждём)

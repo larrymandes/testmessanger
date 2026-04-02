@@ -40,10 +40,10 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadMessages();
     _sendReadReceipts();
     
-    // Слушаем новые сообщения
-    widget.emailService.listenForNewMessages().listen((_) {
-      _loadMessages();
-      _sendReadReceipts();
+    // Слушаем новые сообщения - обновляем чат
+    widget.emailService.listenForNewMessages().listen((_) async {
+      await _loadMessages();
+      await _sendReadReceipts();
     });
   }
 
@@ -53,6 +53,9 @@ class _ChatScreenState extends State<ChatScreen> {
       widget.contactEmail,
     );
 
+    // Сортируем по timestamp (новые внизу для чата)
+    messages.sort((a, b) => a['timestamp'].compareTo(b['timestamp']));
+    
     final chatMessages = messages.map((msg) => _createMessage(msg)).toList();
     _chatController.setMessages(chatMessages);
     
@@ -63,15 +66,18 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Message _createMessage(Map<String, dynamic> msg) {
     final timestamp = DateTime.fromMillisecondsSinceEpoch(msg['timestamp']);
+    final isSent = msg['sent'] == 1 || msg['sent'] == true;
+    final status = msg['status'] ?? 'sent';
     
     return TextMessage(
       id: msg['uid'] ?? msg['id'].toString(),
-      authorId: msg['sent'] ? widget.myEmail : widget.contactEmail,
+      authorId: isSent ? widget.myEmail : widget.contactEmail,
       createdAt: timestamp,
       text: msg['text'],
-      sentAt: msg['status'] == 'sent' || msg['status'] == 'read' ? timestamp : null,
-      seenAt: msg['status'] == 'read' ? timestamp : null,
-      metadata: msg['status'] == 'sending' ? {'sending': true} : null,
+      // Отправленные: показываем галочки
+      sentAt: isSent && status != 'sending' ? timestamp : null,
+      seenAt: isSent && status == 'read' ? timestamp : null,
+      metadata: status == 'sending' ? {'sending': true} : null,
     );
   }
 
