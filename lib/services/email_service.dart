@@ -30,9 +30,9 @@ class EmailService {
     this.imapPort = 993,
     this.smtpServer = 'smtp.mail.ru',
     this.smtpPort = 465, // Используем 465 (TLS) вместо 587 (STARTTLS)
-    this.smtpUseTls = true, // TLS сразу, без STARTTLS
+    this.smtpUseTls = true, // TLS сразу, без STARTTLS 
   });
-
+  
   // Подключение к IMAP
   Future<void> connectImap() async {
     try {
