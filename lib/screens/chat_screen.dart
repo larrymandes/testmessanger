@@ -8,6 +8,7 @@ import 'dart:math';
 import '../services/email_service.dart';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
+import '../services/logger_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final String contactEmail;
