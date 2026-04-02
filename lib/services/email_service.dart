@@ -21,6 +21,7 @@ class EmailService {
   
   // Callback для уведомления о новых сообщениях (вызывается из IDLE)
   Function()? _onNewMessageCallback;
+  bool _callbackPending = false; // Флаг что callback уже вызван, ждём завершения fetch
 
   EmailService({
     required this.email,
@@ -164,18 +165,24 @@ class EmailService {
         }
         
         // КАК DELTA CHAT: Всегда уведомляем после IDLE
-        LoggerService.log('IDLE: Notifying (had event: $hadEvent, EXISTS: $_lastKnownExists)');
+        LoggerService.log('IDLE: Notifying (had event: $hadEvent, EXISTS: $_lastKnownExists, pending: $_callbackPending)');
         
-        // Уведомляем через callback (мгновенно) - ТОЛЬКО ОДИН РАЗ
-        try {
-          if (_onNewMessageCallback != null) {
-            LoggerService.log('IDLE: Calling callback');
-            _onNewMessageCallback!();
-          } else {
-            LoggerService.log('IDLE: WARNING - No callback set!');
+        // Уведомляем через callback ТОЛЬКО если не ждём предыдущий
+        if (!_callbackPending) {
+          try {
+            if (_onNewMessageCallback != null) {
+              LoggerService.log('IDLE: Calling callback');
+              _callbackPending = true; // Блокируем повторные вызовы
+              _onNewMessageCallback!();
+            } else {
+              LoggerService.log('IDLE: WARNING - No callback set!');
+            }
+          } catch (e) {
+            LoggerService.log('IDLE: Callback error: $e');
+            _callbackPending = false;
           }
-        } catch (e) {
-          LoggerService.log('IDLE: Callback error: $e');
+        } else {
+          LoggerService.log('IDLE: Callback already pending, skipping');
         }
         
         // Stream НЕ используем (чтобы не было дублей)
@@ -198,8 +205,10 @@ class EmailService {
 
   // Получение новых сообщений (как Delta Chat - используем UIDNEXT)
   Future<List<MimeMessage>> fetchNewMessages({int lastSeenUid = 0}) async {
-    // Убрал проверку _isFetching - пусть всегда пытается
-    // Если IMAP занят - будет ошибка, но это лучше чем пропускать
+    if (_isFetching) {
+      LoggerService.log('EmailService: Already fetching, returning empty');
+      return [];
+    }
     
     _isFetching = true;
     
@@ -282,10 +291,15 @@ class EmailService {
       
       LoggerService.log('${messages.length} mails read from "INBOX".');
       LoggerService.log('Fetched ${messages.length} new chat messages');
+      
+      // Сбрасываем флаг pending - fetch завершён
+      _callbackPending = false;
+      
       return messages;
       
     } catch (e) {
       LoggerService.log('fetchNewMessages error: $e');
+      _callbackPending = false; // Сбрасываем при ошибке
       if (e.toString().contains('Connection') || e.toString().contains('Socket')) {
         _imapClient = null;
         _isIdleRunning = false;
