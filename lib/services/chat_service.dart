@@ -96,8 +96,12 @@ class ChatService {
       return;
     }
     
+    LoggerService.log('ChatService: fetchAndProcessNewMessages() called');
+    
     try {
       final maxUID = await StorageService.getMaxProcessedUID(email);
+      LoggerService.log('ChatService: maxUID from DB = $maxUID');
+      
       final newMessages = await _emailService.fetchNewMessages(lastSeenUid: maxUID);
       
       if (newMessages.isNotEmpty) {
