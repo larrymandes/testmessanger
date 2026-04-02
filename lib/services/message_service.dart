@@ -197,6 +197,9 @@ class MessageService {
     );
     
     LoggerService.log('✅ Contact $contactEmail saved successfully!');
+    
+    // ВАЖНО: Уведомляем UI что контакт добавлен
+    _notifyUI();
   }
   
   Future<void> _handleReadReceipt(Map<String, dynamic> receipt, String from) async {
