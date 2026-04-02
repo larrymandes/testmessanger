@@ -238,6 +238,21 @@ class EmailService {
     LoggerService.log('IDLE: Loop ended');
   }
 
+  // Получение текущего UIDNEXT без fetch (для первого запуска)
+  Future<int> getCurrentUidNext() async {
+    try {
+      if (_imapClient == null) {
+        await connectImap();
+      }
+      
+      final mailbox = await _imapClient!.selectInbox();
+      return mailbox.uidNext ?? 0;
+    } catch (e) {
+      LoggerService.log('getCurrentUidNext error: $e');
+      return 0;
+    }
+  }
+
   // Получение новых сообщений (как Delta Chat - используем UIDNEXT)
   Future<List<MimeMessage>> fetchNewMessages({int lastSeenUid = 0}) async {
     if (_isFetching) {
