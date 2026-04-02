@@ -47,6 +47,9 @@ class EmailService {
       
       LoggerService.log('IMAP: Connected, EXISTS=$_lastKnownExists, UIDNEXT=$_lastUidNext, UIDVALIDITY=$_uidValidity');
       
+      // Запускаем IDLE сразу после подключения (ВАЖНО!)
+      _startIdleLoop();
+      
       // Запускаем фоновый fetch loop (как Delta Chat) - backup каждые 5 минут
       _startBackgroundFetchLoop();
     } catch (e) {
