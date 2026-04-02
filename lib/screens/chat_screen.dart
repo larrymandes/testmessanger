@@ -71,7 +71,7 @@ class _ChatScreenState extends State<ChatScreen> {
     
     final chatMessages = messages.map((msg) => _createMessage(msg)).toList();
     LoggerService.log('ChatScreen: Created ${chatMessages.length} chat messages');
-    
+     
     if (mounted) {
       LoggerService.log('ChatScreen: Calling setState to update UI');
       setState(() {
