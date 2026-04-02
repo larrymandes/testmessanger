@@ -44,10 +44,11 @@ class EmailService {
       final mailbox = await _imapClient!.selectInbox();
       
       _lastKnownExists = mailbox.messagesExists;
-      _lastUidNext = mailbox.uidNext ?? 0;
+      // НЕ устанавливаем _lastUidNext здесь! Он должен браться из БД через lastSeenUid
+      // _lastUidNext будет обновлён в fetchNewMessages() после успешного fetch
       _uidValidity = mailbox.uidValidity ?? 0;
       
-      LoggerService.log('IMAP: Connected, EXISTS=$_lastKnownExists, UIDNEXT=$_lastUidNext, UIDVALIDITY=$_uidValidity');
+      LoggerService.log('IMAP: Connected, EXISTS=$_lastKnownExists, UIDNEXT=${mailbox.uidNext}, UIDVALIDITY=$_uidValidity');
       
       // Запускаем IDLE только если ещё не запущен
       if (!_isIdleRunning) {
@@ -260,7 +261,6 @@ class EmailService {
       if (_uidValidity != 0 && currentUidValidity != _uidValidity) {
         LoggerService.log('UIDVALIDITY changed! Mailbox was recreated. Resetting.');
         _uidValidity = currentUidValidity;
-        _lastUidNext = mailbox.uidNext ?? 0;
         // Нужно пересинхронизировать всё, но пока просто сбрасываем
         return [];
       }
@@ -268,16 +268,19 @@ class EmailService {
       _uidValidity = currentUidValidity;
       final currentUidNext = mailbox.uidNext ?? 0;
       
-      // Если UIDNEXT не изменился - новых писем нет
-      if (currentUidNext <= _lastUidNext) {
-        LoggerService.log('No new messages (UIDNEXT=$currentUidNext)');
+      // ВАЖНО: Используем lastSeenUid из БД, а НЕ _lastUidNext!
+      // _lastUidNext используется только для IDLE событий
+      final startUid = lastSeenUid > 0 ? lastSeenUid + 1 : 1;
+      
+      // Если нет новых сообщений (startUid >= currentUidNext)
+      if (startUid >= currentUidNext) {
+        LoggerService.log('No new messages (lastSeenUid=$lastSeenUid, UIDNEXT=$currentUidNext)');
         return [];
       }
       
-      LoggerService.log('New messages detected! UIDNEXT: $_lastUidNext -> $currentUidNext');
+      LoggerService.log('New messages detected! lastSeenUid=$lastSeenUid, UIDNEXT=$currentUidNext');
       
       // Батчинг: fetch по 50 писем за раз (как Delta Chat, но проще)
-      final startUid = _lastUidNext > 0 ? _lastUidNext : 1;
       final totalNew = currentUidNext - startUid;
       final messages = <MimeMessage>[];
       
@@ -292,9 +295,6 @@ class EmailService {
           
           LoggerService.log('Batch: UID $batchStart:$batchEnd');
           
-          // Используем uidSearchMessages + uidFetchMessages для батча
-          // Для uidSearchMessages используем просто 'ALL' и потом фильтруем по UID через MessageSequence
-          // Или проще - сразу используем uidFetchMessages с MessageSequence
           final sequence = MessageSequence.fromRange(batchStart, batchEnd);
           final fetchResult = await _imapClient!.uidFetchMessages(
             sequence,
@@ -308,12 +308,10 @@ class EmailService {
         }
       } else {
         // Обычный fetch если писем мало
-        // КАК DELTA CHAT: Fetch только НОВЫЕ письма (startUid до currentUidNext-1)
         final endUid = currentUidNext - 1;
         final uidFetchStopwatch = Stopwatch()..start();
         LoggerService.log('Starting UID FETCH of message set "$startUid:$endUid"');
         
-        // Используем MessageSequence для конкретного диапазона (НЕ до конца!)
         final sequence = MessageSequence.fromRange(startUid, endUid);
         final fetchResult = await _imapClient!.uidFetchMessages(
           sequence,
@@ -325,7 +323,7 @@ class EmailService {
         messages.addAll(_filterChatMessages(fetchResult.messages, lastSeenUid));
       }
       
-      // Обновляем UIDNEXT
+      // Обновляем _lastUidNext для IDLE (чтобы знать что уже обработали)
       _lastUidNext = currentUidNext;
       
       fetchStopwatch.stop();
