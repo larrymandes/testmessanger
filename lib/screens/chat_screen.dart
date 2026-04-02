@@ -40,8 +40,6 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     LoggerService.log('ChatScreen: initState for ${widget.contactEmail}');
-    _loadMessages();
-    _sendReadReceipts();
     
     // Создаём callback и регистрируем
     _messageCallback = () {
@@ -57,6 +55,30 @@ class _ChatScreenState extends State<ChatScreen> {
     
     widget.emailService.setNewMessageCallback(_messageCallback);
     LoggerService.log('ChatScreen: Callback registered');
+    
+    // ВАЖНО: Сначала загружаем из БД
+    _loadMessages();
+    _sendReadReceipts();
+    
+    // ПОТОМ делаем fetch новых сообщений с сервера
+    LoggerService.log('ChatScreen: Requesting initial fetch...');
+    _requestFetch();
+  }
+  
+  // Запрашиваем fetch через EmailService
+  Future<void> _requestFetch() async {
+    try {
+      final maxUID = await StorageService.getMaxProcessedUID(widget.myEmail);
+      final newMessages = await widget.emailService.fetchNewMessages(lastSeenUid: maxUID);
+      
+      if (newMessages.isNotEmpty) {
+        LoggerService.log('ChatScreen: Got ${newMessages.length} new messages, reloading...');
+        await _loadMessages();
+        await _sendReadReceipts();
+      }
+    } catch (e) {
+      LoggerService.log('ChatScreen: Fetch error: $e');
+    }
   }
 
   Future<void> _loadMessages() async {
@@ -307,9 +329,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
-    LoggerService.log('ChatScreen: dispose() - removing callback');
-    // Удаляем callback при закрытии
-    widget.emailService.removeNewMessageCallback(_messageCallback);
+    LoggerService.log('ChatScreen: dispose() - NOT removing callback (will check mounted)');
+    // НЕ удаляем callback - пусть висит, но проверяет mounted
+    // widget.emailService.removeNewMessageCallback(_messageCallback);
     _chatController.dispose();
     super.dispose();
   }

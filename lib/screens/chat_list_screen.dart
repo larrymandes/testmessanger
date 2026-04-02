@@ -26,22 +26,48 @@ class ChatListScreen extends StatefulWidget {
   State<ChatListScreen> createState() => _ChatListScreenState();
 }
 
-class _ChatListScreenState extends State<ChatListScreen> {
+class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObserver {
   late EmailService _emailService;
   final Map<String, Map<String, dynamic>> _chats = {};
   bool _isLoading = true;
   String _connectionStatus = 'Подключение...';
   AsymmetricKeyPair<PublicKey, PrivateKey>? _myKeyPair;
   String? _myPublicKeyHex;
+  Timer? _periodicFetchTimer; // Периодический fetch (backup)
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // Слушаем lifecycle
     _emailService = EmailService(
       email: widget.email,
       password: widget.password,
     );
     _initialize();
+  }
+  
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Когда приложение возвращается на передний план - fetch новые сообщения
+    if (state == AppLifecycleState.resumed) {
+      LoggerService.log('📱 App resumed - fetching new messages');
+      _fetchNewMessages();
+      // Перезапускаем периодический fetch
+      _startPeriodicFetch();
+    } else if (state == AppLifecycleState.paused) {
+      LoggerService.log('📱 App paused - stopping periodic fetch');
+      _periodicFetchTimer?.cancel();
+    }
+  }
+  
+  // Периодический fetch каждые 30 секунд (BACKUP)
+  void _startPeriodicFetch() {
+    _periodicFetchTimer?.cancel();
+    _periodicFetchTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      LoggerService.log('⏰ Periodic fetch (backup)...');
+      _fetchNewMessages();
+    });
+    LoggerService.log('⏰ Periodic fetch started (every 30s)');
   }
 
   Future<void> _initialize() async {
@@ -81,6 +107,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
         // СРАЗУ получаем новые сообщения при запуске (ВАЖНО!)
         LoggerService.log('Initial fetch on startup...');
         await _fetchNewMessages();
+        
+        // ЗАПУСКАЕМ ПЕРИОДИЧЕСКИЙ FETCH каждые 30 секунд (BACKUP на случай если IDLE не сработал)
+        _startPeriodicFetch();
         
       }).catchError((e) {
         if (mounted) {
@@ -161,7 +190,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         await _processMessage(mimeMessage);
       }
       
-      // ВСЕГДА обновляем список чатов после fetch
+      // ВСЕГДА обновляем UI сразу после обработки
       if (mounted) {
         await _loadContacts();
         setState(() {});
@@ -589,6 +618,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // Удаляем observer
+    _periodicFetchTimer?.cancel(); // Останавливаем периодический fetch
     _emailService.disconnect();
     super.dispose();
   }
