@@ -299,7 +299,7 @@ class EmailService {
           'BODY.PEEK[]',
         );
         
-        messages.addAll(_filterChatMessages(fetchResult.messages, 0));
+        final messages = _filterChatMessages(fetchResult.messages, 0);
         
         // Обновляем _lastUidNext
         _lastUidNext = currentUidNext;
