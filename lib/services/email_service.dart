@@ -295,9 +295,12 @@ class EmailService {
       // _lastUidNext используется только для IDLE событий
       final startUid = lastSeenUid + 1;
       
-      // Если нет новых сообщений (startUid > currentUidNext)
-      if (startUid > currentUidNext) {
-        LoggerService.log('No new messages (lastSeenUid=$lastSeenUid, startUid=$startUid, UIDNEXT=$currentUidNext)');
+      LoggerService.log('EmailService: Checking for new messages...');
+      LoggerService.log('EmailService: lastSeenUid=$lastSeenUid, startUid=$startUid, currentUidNext=$currentUidNext');
+      
+      // Если нет новых сообщений (startUid >= currentUidNext)
+      if (startUid >= currentUidNext) {
+        LoggerService.log('No new messages (startUid >= currentUidNext)');
         return [];
       }
       
