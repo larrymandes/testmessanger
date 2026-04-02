@@ -379,6 +379,12 @@ class EmailService {
         continue;
       }
       
+      // ВАЖНО: Пропускаем BCC копии своих сообщений
+      if (from == email) {
+        LoggerService.log('UID=$uid: BCC copy from myself, skipping');
+        continue;
+      }
+      
       LoggerService.log('UID=$uid: New chat message from $from');
       filtered.add(msg);
     }
