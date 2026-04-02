@@ -169,11 +169,18 @@ class EmailService {
         }
         
         // КАК DELTA CHAT: Всегда уведомляем после IDLE
-        LoggerService.log('IDLE: Notifying (had event: $hadEvent)');
+        LoggerService.log('IDLE: Notifying (had event: $hadEvent, EXISTS: $_lastKnownExists)');
         
-        // Уведомляем через callback (мгновенно)
-        if (_onNewMessageCallback != null) {
-          _onNewMessageCallback!();
+        // Уведомляем через callback (мгновенно) - ВСЕГДА
+        try {
+          if (_onNewMessageCallback != null) {
+            LoggerService.log('IDLE: Calling callback');
+            _onNewMessageCallback!();
+          } else {
+            LoggerService.log('IDLE: WARNING - No callback set!');
+          }
+        } catch (e) {
+          LoggerService.log('IDLE: Callback error: $e');
         }
         
         // И через stream (для совместимости)

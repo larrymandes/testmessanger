@@ -30,7 +30,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
   late EmailService _emailService;
   final Map<String, Map<String, dynamic>> _chats = {};
   bool _isLoading = true;
-  bool _isFetching = false; // Защита от дублирования fetch
   String _connectionStatus = 'Подключение...';
   AsymmetricKeyPair<PublicKey, PrivateKey>? _myKeyPair;
   String? _myPublicKeyHex;
@@ -140,20 +139,15 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Future<void> _fetchNewMessages() async {
-    if (_isFetching) {
-      LoggerService.log('Already fetching, skipping');
-      return;
-    }
-    
-    _isFetching = true;
+    // Не проверяем _isFetching здесь - EmailService сам решит
     
     try {
       final maxUID = await StorageService.getMaxProcessedUID(widget.email);
-      LoggerService.log('Fetching (last UID: $maxUID)...');
+      LoggerService.log('UI: Requesting fetch (last UID: $maxUID)...');
       
       final newMessages = await _emailService.fetchNewMessages(lastSeenUid: maxUID);
       
-      LoggerService.log('Got ${newMessages.length} new messages');
+      LoggerService.log('UI: Got ${newMessages.length} new messages');
       
       for (final mimeMessage in newMessages) {
         await _processMessage(mimeMessage);
@@ -165,12 +159,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
         setState(() {});
       }
     } catch (e) {
-      LoggerService.log('Fetch error: $e');
+      LoggerService.log('UI: Fetch error: $e');
       if (mounted) {
         setState(() => _connectionStatus = 'Ошибка');
       }
-    } finally {
-      _isFetching = false;
     }
   }
 
