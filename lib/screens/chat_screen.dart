@@ -287,6 +287,7 @@ class _ChatScreenState extends State<ChatScreen> {
         chatController: _chatController,
         currentUserId: widget.chatService.email,
         onMessageSend: _handleSendPressed,
+        onMessageLongPress: _handleMessageLongPress, // Добавляем long press
         resolveUser: (userId) async {
           return User(
             id: userId,
@@ -302,6 +303,24 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ),
     );
+  }
+
+  void _handleMessageLongPress(Message message) {
+    // Копируем текст сообщения
+    if (message is TextMessage) {
+      Clipboard.setData(ClipboardData(text: message.text));
+      
+      // Показываем уведомление
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✓ Текст скопирован'),
+          duration: Duration(seconds: 1),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      
+      LoggerService.log('Message copied: ${message.text}');
+    }
   }
 
   @override

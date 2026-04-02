@@ -89,6 +89,29 @@ class ChatService {
   /// Получение данных аккаунта
   AccountData get accountData => _accountData;
   
+  /// Принудительный fetch новых сообщений (для resume и т.д.)
+  Future<void> fetchAndProcessNewMessages() async {
+    if (!_initialized) {
+      LoggerService.log('ChatService: Not initialized, skipping fetch');
+      return;
+    }
+    
+    try {
+      final maxUID = await StorageService.getMaxProcessedUID(email);
+      final newMessages = await _emailService.fetchNewMessages(lastSeenUid: maxUID);
+      
+      if (newMessages.isNotEmpty) {
+        LoggerService.log('ChatService: Fetched ${newMessages.length} new messages');
+        await _messageService.processNewMessages(newMessages);
+      } else {
+        LoggerService.log('ChatService: No new messages');
+      }
+    } catch (e) {
+      LoggerService.log('ChatService: Fetch error: $e');
+      rethrow;
+    }
+  }
+  
   /// Отключение
   Future<void> disconnect() async {
     await _emailService.disconnect();

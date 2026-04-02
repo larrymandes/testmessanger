@@ -44,10 +44,12 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
   
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Когда приложение возвращается на передний план - обновляем UI
+    // Когда приложение возвращается на передний план - fetch новые сообщения
     if (state == AppLifecycleState.resumed) {
-      LoggerService.log('📱 App resumed - reloading contacts');
-      _loadContacts();
+      LoggerService.log('📱 App resumed - fetching new messages');
+      _chatService.fetchAndProcessNewMessages().catchError((e) {
+        LoggerService.log('📱 Fetch on resume error: $e');
+      });
       _startPeriodicFetch();
     } else if (state == AppLifecycleState.paused) {
       LoggerService.log('📱 App paused - stopping periodic fetch');
@@ -97,6 +99,12 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
       
       // Запускаем периодический refresh UI
       _startPeriodicFetch();
+      
+      // ВАЖНО: Делаем fetch при старте (на случай если были новые сообщения пока приложение было закрыто)
+      LoggerService.log('ChatListScreen: Initial fetch on startup...');
+      _chatService.fetchAndProcessNewMessages().catchError((e) {
+        LoggerService.log('ChatListScreen: Initial fetch error: $e');
+      });
       
       LoggerService.log('ChatListScreen: Initialization complete!');
       
