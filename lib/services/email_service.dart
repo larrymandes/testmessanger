@@ -38,7 +38,7 @@ class EmailService {
   });
   
   // Подключение к IMAP
-  Future<void> connectImap() async {
+  Future<void> connectImap({bool startIdle = true}) async {
     try {
       _imapClient = ImapClient(isLogEnabled: false);
       await _imapClient!.connectToServer(imapServer, imapPort, isSecure: true);
@@ -59,10 +59,12 @@ class EmailService {
         LoggerService.log('IMAP: Will process only NEW messages from now on');
       }
       
-      // Запускаем IDLE только если ещё не запущен
-      if (!_isIdleRunning) {
+      // Запускаем IDLE только если разрешено и ещё не запущен
+      if (startIdle && !_isIdleRunning) {
         LoggerService.log('IMAP: Starting IDLE loop');
         _startIdleLoop();
+      } else if (!startIdle) {
+        LoggerService.log('IMAP: IDLE start deferred');
       } else {
         LoggerService.log('IMAP: IDLE already running, skipping start');
       }
@@ -72,6 +74,14 @@ class EmailService {
     } catch (e) {
       _imapClient = null;
       rethrow;
+    }
+  }
+  
+  // Запуск IDLE вручную (если был отложен)
+  void startIdleIfNeeded() {
+    if (!_isIdleRunning) {
+      LoggerService.log('IMAP: Starting IDLE loop (deferred start)');
+      _startIdleLoop();
     }
   }
 

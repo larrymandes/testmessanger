@@ -68,11 +68,10 @@ class ChatService {
       LoggerService.log('ChatService: Not first run (maxUID=$maxUIDBeforeConnect)');
     }
     
-    // 6. Подключаемся к IMAP (установит sync point если первый запуск)
-    await _emailService.connectImap();
+    // 6. Подключаемся к IMAP БЕЗ запуска IDLE (если не первый запуск)
+    await _emailService.connectImap(startIdle: isFirstRun);
     
-    // 7. ВАЖНО: Делаем начальный fetch ПОСЛЕ подключения
-    // НО только если это НЕ первый запуск (чтобы не фетчить старые письма)
+    // 7. ВАЖНО: Делаем начальный fetch ПОСЛЕ подключения (если не первый запуск)
     if (!isFirstRun) {
       LoggerService.log('ChatService: Doing initial fetch for missed messages...');
       try {
@@ -89,8 +88,13 @@ class ChatService {
         LoggerService.log('ChatService: Initial fetch error: $e');
         // Не падаем, продолжаем работу
       }
+      
+      // 8. Теперь запускаем IDLE (после fetch)
+      LoggerService.log('ChatService: Starting IDLE after initial fetch');
+      _emailService.startIdleIfNeeded();
     } else {
       LoggerService.log('ChatService: First run - skipping initial fetch (sync point set)');
+      LoggerService.log('ChatService: IDLE already started');
     }
     
     _initialized = true;
