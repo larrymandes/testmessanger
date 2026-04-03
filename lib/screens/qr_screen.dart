@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'dart:convert';
 import '../services/crypto_service.dart';
-import '../services/storage_service.dart';
 import '../services/chat_service.dart';
 import '../services/logger_service.dart';
 
@@ -162,6 +160,7 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
     setState(() => _isProcessing = true);
 
     try {
+      // 1. Парсим QR данные
       final parts = qrData.split(':');
       if (parts.length < 3 || parts[0] != 'chatinvite') {
         throw Exception('Неверный формат QR-кода');
@@ -170,77 +169,13 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
       final contactEmail = parts[1];
       final publicKey = parts[2];
 
-      if (contactEmail == widget.chatService.email) {
-        throw Exception('Нельзя добавить самого себя');
-      }
-
-      // ✅ Валидация публичного ключа
-      LoggerService.log('QR: Validating public key...');
-      if (!CryptoService.isValidPublicKey(publicKey)) {
-        throw Exception('Неверный формат публичного ключа');
-      }
-      LoggerService.log('QR: ✅ Public key is valid');
-
-      // Проверяем, не добавлен ли уже
-      final existing = await StorageService.getContact(widget.chatService.email, contactEmail);
-      if (existing != null) {
-        if (mounted) {
-          await _controller.stop();
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✓ Контакт уже добавлен'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
-          Navigator.pop(context);
-        }
-        return;
-      }
-
-      // ВАЖНО: СНАЧАЛА отправляем invite, ПОТОМ сохраняем в БД!
-      LoggerService.log('QR: Sending invite to $contactEmail...');
-      
-      final inviteMessage = jsonEncode({
-        'type': 'invite',
-        'email': widget.chatService.email,
-        'pubkey': widget.chatService.accountData.publicKeyHex,
-      });
-      
-      LoggerService.log('QR: Encrypting invite...');
-      
-      final encrypted = await CryptoService.encryptMessage(
-        plaintext: inviteMessage,
-        recipientPubKeyHex: publicKey,
-        senderEmail: widget.chatService.email,
-        recipientEmail: contactEmail,
-      );
-      
-      LoggerService.log('QR: Sending via SMTP...');
-      
-      // Отправляем с таймаутом 30 секунд
-      await widget.chatService.sendMessage(
-        toEmail: contactEmail,
-        encryptedPayload: jsonEncode(encrypted),
-      ).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw Exception('Таймаут отправки (30 сек)');
-        },
-      );
-      
-      LoggerService.log('QR: ✅ Invite sent successfully!');
-      
-      // Invite отправлен успешно → ТЕПЕРЬ сохраняем контакт в БД
-      await StorageService.saveContact(
-        accountEmail: widget.chatService.email,
+      // 2. Вызываем сервис (вся логика там)
+      await widget.chatService.addContactWithInvite(
         contactEmail: contactEmail,
-        publicKey: publicKey,
+        contactPublicKey: publicKey,
       );
       
-      LoggerService.log('QR: ✅ Contact $contactEmail saved to DB');
-      
+      // 3. Успех - показываем уведомление
       if (mounted) {
         await _controller.stop();
         
@@ -258,11 +193,11 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
     } catch (e) {
       LoggerService.log('QR: ❌ Error: $e');
       
-      // Ошибка → контакт НЕ сохранён в БД
+      // Ошибка - показываем пользователю
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✗ Ошибка добавления контакта: $e'),
+            content: Text('✗ Ошибка: $e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 10),
             behavior: SnackBarBehavior.floating,

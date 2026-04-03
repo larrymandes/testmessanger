@@ -208,32 +208,29 @@ class _ChatScreenState extends State<ChatScreen> {
   void _handleSendPressed(String text) async {
     final now = DateTime.now().toUtc();
     
-    // 1. Разделяем текст на части для UI (чтобы показать сразу)
+    // 1. Разделяем текст на части для UI
     final parts = _splitTextForUI(text);
     
     LoggerService.log('ChatScreen: Sending ${parts.length} message(s)');
     
-    // 2. Создаём и показываем ВСЕ сообщения СРАЗУ в UI
-    final messageUIDs = <String>[];
-    final chatMessages = <TextMessage>[];
-    
+    // 2. Генерируем UIDs и показываем сообщения СРАЗУ
+    final uids = <String>[];
     for (int i = 0; i < parts.length; i++) {
-      final messageUID = '${DateTime.now().millisecondsSinceEpoch}_${DateTime.now().microsecond}_$i';
-      messageUIDs.add(messageUID);
+      final uid = '${DateTime.now().millisecondsSinceEpoch}_${DateTime.now().microsecond}_$i';
+      uids.add(uid);
       
-      // Показываем в UI сразу со статусом "отправляется"
+      // Показываем в UI сразу
       final chatMessage = TextMessage(
-        id: messageUID,
+        id: uid,
         authorId: widget.chatService.email,
         createdAt: now,
         text: parts[i],
         metadata: {'sending': true},
       );
       
-      chatMessages.add(chatMessage);
       _chatController.insertMessage(chatMessage);
       
-      // Сохраняем в БД сразу
+      // Сохраняем в БД
       await StorageService.saveMessage(
         accountEmail: widget.chatService.email,
         contactEmail: widget.contactEmail,
@@ -241,41 +238,51 @@ class _ChatScreenState extends State<ChatScreen> {
         sent: true,
         timestamp: now.millisecondsSinceEpoch,
         status: 'sending',
-        uid: messageUID,
+        uid: uid,
         messageId: null,
       );
     }
     
-    // 3. Вызываем сервис для отправки (он сам применит rate limiting)
-    widget.chatService.sendTextMessageWithSplit(
-      toEmail: widget.contactEmail,
-      text: text,
-      recipientPublicKey: widget.contactPublicKey,
-      onStatusUpdate: (uid, status) async {
-        // Обновляем статус в БД
-        await StorageService.updateMessageStatus(
-          widget.chatService.email,
-          uid,
-          status,
-        );
-        
-        // Обновляем UI
-        if (mounted) {
-          final messages = _chatController.messages;
-          final messageIndex = messages.indexWhere((m) => m.id == uid);
-          if (messageIndex != -1) {
-            final oldMessage = messages[messageIndex] as TextMessage;
-            final updatedMessage = oldMessage.copyWith(
-              sentAt: status == 'sent' ? DateTime.now() : null,
-              metadata: status == 'error' ? {'error': true} : null,
-            );
-            _chatController.updateMessage(oldMessage, updatedMessage);
+    // 3. Отправляем в фоне с callback для обновления статусов
+    _sendInBackground(text, uids);
+  }
+  
+  /// Отправка в фоне
+  void _sendInBackground(String text, List<String> uids) async {
+    try {
+      await widget.chatService.sendTextMessageWithUIDs(
+        toEmail: widget.contactEmail,
+        text: text,
+        recipientPublicKey: widget.contactPublicKey,
+        uids: uids,
+        onStatusUpdate: (uid, status) async {
+          LoggerService.log('ChatScreen: Status update for $uid: $status');
+          
+          // Обновляем статус в БД
+          await StorageService.updateMessageStatus(
+            widget.chatService.email,
+            uid,
+            status,
+          );
+          
+          // Обновляем UI
+          if (mounted) {
+            final messages = _chatController.messages;
+            final messageIndex = messages.indexWhere((m) => m.id == uid);
+            if (messageIndex != -1) {
+              final oldMessage = messages[messageIndex] as TextMessage;
+              final updatedMessage = oldMessage.copyWith(
+                sentAt: status == 'sent' ? DateTime.now() : null,
+                metadata: status == 'error' ? {'error': true} : null,
+              );
+              _chatController.updateMessage(oldMessage, updatedMessage);
+            }
           }
-        }
-      },
-    ).catchError((e) {
+        },
+      );
+    } catch (e) {
       LoggerService.log('ChatScreen: Send error: $e');
-    });
+    }
   }
   
   /// Разделение текста для UI (4096 символов)

@@ -198,6 +198,73 @@ class ChatService {
     _messageSendTimestamps.add(DateTime.now().millisecondsSinceEpoch);
   }
   
+  /// Отправка текстового сообщения с заданными UIDs (с валидацией, rate limiting и разделением)
+  Future<void> sendTextMessageWithUIDs({
+    required String toEmail,
+    required String text,
+    required String recipientPublicKey,
+    required List<String> uids,
+    required Function(String uid, String status) onStatusUpdate,
+  }) async {
+    LoggerService.log('ChatService: sendTextMessageWithUIDs() called');
+    LoggerService.log('ChatService: Text length: ${text.length} chars, UIDs: ${uids.length}');
+    
+    // 1. Валидация публичного ключа
+    if (!CryptoService.isValidPublicKey(recipientPublicKey)) {
+      throw Exception('Неверный формат публичного ключа получателя');
+    }
+    
+    // 2. Разделяем текст на части
+    final parts = _splitTextIntoParts(text);
+    LoggerService.log('ChatService: Split into ${parts.length} part(s)');
+    
+    if (parts.length != uids.length) {
+      throw Exception('UIDs count (${uids.length}) != parts count (${parts.length})');
+    }
+    
+    // 3. Отправляем каждую часть с rate limiting
+    for (int i = 0; i < parts.length; i++) {
+      try {
+        // Ждём если нужно (rate limiting)
+        await _waitForRateLimit();
+        
+        LoggerService.log('ChatService: Sending part ${i + 1}/${parts.length} (${parts[i].length} chars)');
+        
+        // Шифруем
+        final encrypted = await CryptoService.encryptMessage(
+          plaintext: jsonEncode({'text': parts[i]}),
+          recipientPubKeyHex: recipientPublicKey,
+          senderEmail: email,
+          recipientEmail: toEmail,
+        );
+        
+        // Отправляем
+        await sendMessage(
+          toEmail: toEmail,
+          encryptedPayload: jsonEncode(encrypted),
+        );
+        
+        // Добавляем timestamp для rate limiting
+        _addSendTimestamp();
+        
+        LoggerService.log('ChatService: ✅ Part ${i + 1}/${parts.length} sent');
+        
+        // Уведомляем UI об успешной отправке
+        onStatusUpdate(uids[i], 'sent');
+        
+      } catch (e) {
+        LoggerService.log('ChatService: ❌ Part ${i + 1}/${parts.length} error: $e');
+        
+        // Уведомляем UI об ошибке
+        onStatusUpdate(uids[i], 'error');
+        
+        rethrow;
+      }
+    }
+    
+    LoggerService.log('ChatService: ✅ All ${parts.length} parts sent');
+  }
+  
   /// Отправка текстового сообщения (с валидацией, rate limiting и разделением)
   /// Возвращает список UID созданных сообщений
   Future<List<String>> sendTextMessageWithSplit({
@@ -365,6 +432,72 @@ class ChatService {
       LoggerService.log('ChatService: Fetch error: $e');
       rethrow;
     }
+  }
+  
+  /// Добавление контакта через QR (с отправкой invite)
+  Future<void> addContactWithInvite({
+    required String contactEmail,
+    required String contactPublicKey,
+  }) async {
+    LoggerService.log('ChatService: Adding contact $contactEmail with invite');
+    
+    // 1. Валидация публичного ключа
+    LoggerService.log('ChatService: Validating public key...');
+    if (!CryptoService.isValidPublicKey(contactPublicKey)) {
+      throw Exception('Неверный формат публичного ключа');
+    }
+    LoggerService.log('ChatService: ✅ Public key is valid');
+    
+    // 2. Проверяем что не добавляем самого себя
+    if (contactEmail == email) {
+      throw Exception('Нельзя добавить самого себя');
+    }
+    
+    // 3. Проверяем что контакт ещё не добавлен
+    final existing = await StorageService.getContact(email, contactEmail);
+    if (existing != null) {
+      LoggerService.log('ChatService: Contact already exists');
+      return; // Не ошибка, просто уже есть
+    }
+    
+    // 4. Создаём invite сообщение
+    final inviteMessage = jsonEncode({
+      'type': 'invite',
+      'email': email,
+      'pubkey': _accountData.publicKeyHex,
+    });
+    
+    // 5. Шифруем
+    LoggerService.log('ChatService: Encrypting invite...');
+    final encrypted = await CryptoService.encryptMessage(
+      plaintext: inviteMessage,
+      recipientPubKeyHex: contactPublicKey,
+      senderEmail: email,
+      recipientEmail: contactEmail,
+    );
+    
+    // 6. ВАЖНО: СНАЧАЛА отправляем invite
+    LoggerService.log('ChatService: Sending invite via SMTP...');
+    await sendMessage(
+      toEmail: contactEmail,
+      encryptedPayload: jsonEncode(encrypted),
+    ).timeout(
+      const Duration(seconds: 30),
+      onTimeout: () {
+        throw Exception('Таймаут отправки (30 сек)');
+      },
+    );
+    
+    LoggerService.log('ChatService: ✅ Invite sent successfully!');
+    
+    // 7. Invite отправлен успешно → ТЕПЕРЬ сохраняем контакт в БД
+    await StorageService.saveContact(
+      accountEmail: email,
+      contactEmail: contactEmail,
+      publicKey: contactPublicKey,
+    );
+    
+    LoggerService.log('ChatService: ✅ Contact $contactEmail saved to DB');
   }
   
   /// Отключение
