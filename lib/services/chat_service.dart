@@ -397,10 +397,12 @@ class ChatService {
   Future<String> sendMessage({
     required String toEmail,
     required String encryptedPayload,
+    bool bccToSelf = true,
   }) async {
     return await _emailService.sendMessage(
       toEmail: toEmail,
       encryptedPayload: encryptedPayload,
+      bccToSelf: bccToSelf,
     );
   }
   

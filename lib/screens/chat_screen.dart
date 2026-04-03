@@ -165,10 +165,20 @@ class _ChatScreenState extends State<ChatScreen> {
       widget.contactEmail,
     );
 
-    final unread = messages.where((m) => 
-      !m['sent'] && !m['readSent'] && m['uid'] != null
-    ).toList();
+    LoggerService.log('ChatScreen: Checking ${messages.length} messages for read receipts');
+    
+    final unread = messages.where((m) {
+      final sent = m['sent'];
+      final readSent = m['readSent'];
+      final uid = m['uid'];
+      
+      LoggerService.log('ChatScreen: Message uid=$uid sent=$sent readSent=$readSent');
+      
+      return !sent && !readSent && uid != null;
+    }).toList();
 
+    LoggerService.log('ChatScreen: Found ${unread.length} unread messages');
+    
     if (unread.isEmpty) return;
     
     LoggerService.log('ChatScreen: Sending ${unread.length} read receipts');
@@ -192,6 +202,7 @@ class _ChatScreenState extends State<ChatScreen> {
       await widget.chatService.sendMessage(
         toEmail: widget.contactEmail,
         encryptedPayload: jsonEncode(encrypted),
+        bccToSelf: false, // Read receipt БЕЗ BCC!
       );
       
       // Помечаем все как отправленные
