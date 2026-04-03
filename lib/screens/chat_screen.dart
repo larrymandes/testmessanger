@@ -7,7 +7,6 @@ import '../services/chat_service.dart';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
 import '../services/logger_service.dart';
-import '../theme/chat_theme.dart';
 
 class ChatScreen extends StatefulWidget {
   final String contactEmail;
@@ -366,14 +365,21 @@ class _ChatScreenState extends State<ChatScreen> {
         chatController: _chatController,
         currentUserId: widget.chatService.email,
         onMessageSend: _handleSendPressed,
-        onMessageLongPress: _handleMessageLongPress,
+        onMessageLongPress: _handleMessageLongPress, // Добавляем long press
         resolveUser: (userId) async {
           return User(
             id: userId,
             name: userId == widget.chatService.email ? 'Вы' : widget.contactEmail,
           );
         },
-        theme: TelegramChatTheme.createDarkTheme(),
+        theme: ChatTheme.dark().copyWith(
+          colors: ChatTheme.dark().colors.copyWith(
+            primary: const Color(0xFF3e88f7),      // accent_text_color
+            surface: const Color(0xFF1c1c1d),      // section_bg_color
+            onSurface: const Color(0xFFffffff),    // text_color
+            secondary: const Color(0xFF000000),    // bg_color
+          ),
+        ),
       ),
     );
   }
