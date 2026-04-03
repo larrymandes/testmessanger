@@ -171,6 +171,25 @@ class StorageService {
         .toList();
   }
 
+  static Future<void> deleteContact(
+    String accountEmail,
+    String contactEmail,
+  ) async {
+    // Удаляем контакт
+    await _database!.delete(
+      'contacts',
+      where: 'account_email = ? AND contact_email = ?',
+      whereArgs: [accountEmail, contactEmail],
+    );
+    
+    // Удаляем все сообщения с этим контактом
+    await _database!.delete(
+      'messages',
+      where: 'account_email = ? AND contact_email = ?',
+      whereArgs: [accountEmail, contactEmail],
+    );
+  }
+
   // === Сообщения ===
 
   static Future<void> saveMessage({

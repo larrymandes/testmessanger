@@ -178,7 +178,6 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
       final existing = await StorageService.getContact(widget.chatService.email, contactEmail);
       if (existing != null) {
         if (mounted) {
-          // Останавливаем камеру
           await _controller.stop();
           
           ScaffoldMessenger.of(context).showSnackBar(
@@ -193,104 +192,78 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
         return;
       }
 
-      // Сохраняем контакт
+      // ВАЖНО: СНАЧАЛА отправляем invite, ПОТОМ сохраняем в БД!
+      LoggerService.log('QR: Sending invite to $contactEmail...');
+      
+      final inviteMessage = jsonEncode({
+        'type': 'invite',
+        'email': widget.chatService.email,
+        'pubkey': widget.chatService.accountData.publicKeyHex,
+      });
+      
+      LoggerService.log('QR: Encrypting invite...');
+      
+      final encrypted = await CryptoService.encryptMessage(
+        plaintext: inviteMessage,
+        recipientPubKeyHex: publicKey,
+        senderEmail: widget.chatService.email,
+        recipientEmail: contactEmail,
+      );
+      
+      LoggerService.log('QR: Sending via SMTP...');
+      
+      // Отправляем с таймаутом 30 секунд
+      await widget.chatService.sendMessage(
+        toEmail: contactEmail,
+        encryptedPayload: jsonEncode(encrypted),
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Таймаут отправки (30 сек)');
+        },
+      );
+      
+      LoggerService.log('QR: ✅ Invite sent successfully!');
+      
+      // Invite отправлен успешно → ТЕПЕРЬ сохраняем контакт в БД
       await StorageService.saveContact(
         accountEmail: widget.chatService.email,
         contactEmail: contactEmail,
         publicKey: publicKey,
       );
       
-      LoggerService.log('QR: Contact $contactEmail saved locally');
-
-      // Отправляем invite обратно для взаимного добавления
-      try {
-        LoggerService.log('QR: Sending invite to $contactEmail...');
+      LoggerService.log('QR: ✅ Contact $contactEmail saved to DB');
+      
+      if (mounted) {
+        await _controller.stop();
         
-        final inviteMessage = jsonEncode({
-          'type': 'invite',
-          'email': widget.chatService.email,
-          'pubkey': widget.chatService.accountData.publicKeyHex,
-        });
-        
-        LoggerService.log('QR: Encrypting invite...');
-        
-        final encrypted = await CryptoService.encryptMessage(
-          plaintext: inviteMessage,
-          recipientPubKeyHex: publicKey,
-          senderEmail: widget.chatService.email,
-          recipientEmail: contactEmail,
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✓ Контакт добавлен и приглашение отправлено'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
         );
         
-        LoggerService.log('QR: Sending via SMTP...');
-        
-        await widget.chatService.sendMessage(
-          toEmail: contactEmail,
-          encryptedPayload: jsonEncode(encrypted),
-        );
-        
-        LoggerService.log('QR: Invite sent successfully!');
-        
-        if (mounted) {
-          // Останавливаем камеру
-          await _controller.stop();
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✓ Контакт добавлен и приглашение отправлено'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
-          
-          // Закрываем экран сканирования
-          Navigator.pop(context);
-          
-          // Уведомляем родителя
-          await widget.onContactAdded(contactEmail, publicKey);
-        }
-      } catch (e) {
-        // Контакт сохранён, но invite не отправлен
-        if (mounted) {
-          // Останавливаем камеру
-          await _controller.stop();
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Контакт добавлен, но приглашение не отправлено: $e'),
-              backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 5),
-              behavior: SnackBarBehavior.floating,
-              action: SnackBarAction(
-                label: 'Копировать',
-                textColor: Colors.white,
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: 'Ошибка отправки invite: $e'));
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                },
-              ),
-            ),
-          );
-          
-          // Закрываем экран сканирования
-          Navigator.pop(context);
-          
-          // Уведомляем родителя
-          await widget.onContactAdded(contactEmail, publicKey);
-        }
+        Navigator.pop(context);
+        await widget.onContactAdded(contactEmail, publicKey);
       }
     } catch (e) {
+      LoggerService.log('QR: ❌ Error: $e');
+      
+      // Ошибка → контакт НЕ сохранён в БД
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Ошибка: $e'),
+            content: Text('✗ Ошибка добавления контакта: $e'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
+            duration: const Duration(seconds: 10),
             behavior: SnackBarBehavior.floating,
             action: SnackBarAction(
               label: 'Копировать',
               textColor: Colors.white,
               onPressed: () {
-                Clipboard.setData(ClipboardData(text: 'Ошибка добавления контакта: $e'));
+                Clipboard.setData(ClipboardData(text: 'Ошибка: $e'));
                 ScaffoldMessenger.of(context).hideCurrentSnackBar();
               },
             ),

@@ -70,12 +70,15 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
   }
 
   Future<void> _initialize() async {
-    setState(() => _isLoading = true);
-    
     try {
       LoggerService.log('ChatListScreen: Initializing ChatService...');
       
+      // СНАЧАЛА загружаем контакты из БД (показываем сразу)
+      await _loadContacts();
+      setState(() => _isLoading = false);
+      
       // Инициализируем ChatService (он сам загрузит ключи, подключится к IMAP и т.д.)
+      setState(() => _connectionStatus = 'Подключение...');
       await _chatService.initialize();
       
       // Получаем данные аккаунта
@@ -89,24 +92,20 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
         }
       });
       
-      // Загружаем контакты из БД
-      await _loadContacts();
-      
-      setState(() {
-        _isLoading = false;
-        _connectionStatus = 'Подключено';
-      });
+      setState(() => _connectionStatus = 'Подключено');
       
       // Запускаем периодический refresh UI
       _startPeriodicFetch();
       
       LoggerService.log('ChatListScreen: Initialization complete!');
       
-      // ВАЖНО: Делаем fetch при старте СРАЗУ (синхронно)
-      // Это гарантирует что сообщения которые пришли пока приложение было закрыто - будут получены
+      // ВАЖНО: Делаем fetch при старте (в фоне)
       LoggerService.log('ChatListScreen: Initial fetch on startup...');
-      await _chatService.fetchAndProcessNewMessages();
-      LoggerService.log('ChatListScreen: Initial fetch completed!');
+      _chatService.fetchAndProcessNewMessages().then((_) {
+        LoggerService.log('ChatListScreen: Initial fetch completed!');
+      }).catchError((e) {
+        LoggerService.log('ChatListScreen: Initial fetch error: $e');
+      });
       
     } catch (e) {
       setState(() {
@@ -129,10 +128,16 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
         contact['email'],
       );
       
+      // Считаем непрочитанные (входящие без read receipt)
+      final unreadCount = messages.where((m) => 
+        !m['sent'] && !m['readSent']
+      ).length;
+      
       _chats[contact['email']] = {
         'publicKey': contact['publicKey'],
         'messages': messages,
         'lastMessage': messages.isNotEmpty ? messages.first['text'] : null,
+        'unreadCount': unreadCount,
       };
     }
     
@@ -275,6 +280,7 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
       itemBuilder: (context, index) {
         final email = _chats.keys.elementAt(index);
         final chat = _chats[email]!;
+        final unreadCount = chat['unreadCount'] as int;
         
         return ListTile(
           leading: CircleAvatar(
@@ -286,6 +292,28 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
+          trailing: unreadCount > 0
+            ? Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2b5278),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                constraints: const BoxConstraints(
+                  minWidth: 24,
+                  minHeight: 24,
+                ),
+                child: Text(
+                  unreadCount.toString(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              )
+            : null,
           onTap: () {
             Navigator.push(
               context,
@@ -298,9 +326,81 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
               ),
             ).then((_) => _loadContacts());
           },
+          onLongPress: () => _showContactOptions(email),
         );
       },
     );
+  }
+  
+  void _showContactOptions(String contactEmail) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1a2332),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('Удалить контакт', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                _confirmDeleteContact(contactEmail);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  void _confirmDeleteContact(String contactEmail) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Удалить контакт?'),
+        content: Text('Контакт $contactEmail и все сообщения будут удалены.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteContact(contactEmail);
+            },
+            child: const Text('Удалить', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Future<void> _deleteContact(String contactEmail) async {
+    try {
+      await StorageService.deleteContact(widget.email, contactEmail);
+      await _loadContacts();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✓ Контакт $contactEmail удалён'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      LoggerService.log('Delete contact error: $e');
+      if (mounted) {
+        _showErrorWithCopy('Ошибка удаления', e.toString());
+      }
+    }
   }
 
   void _showMyQR() {
