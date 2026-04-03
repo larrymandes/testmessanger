@@ -180,12 +180,12 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
               LoggerService.log('Manual refresh triggered');
               setState(() => _connectionStatus = 'Обновление...');
               try {
-                // Делаем fetch новых сообщений (как при запуске)
+                // Делаем fetch новых сообщений
+                // Callback сам загрузит контакты и обновит статус!
                 await _chatService.fetchAndProcessNewMessages();
-                // Загружаем контакты из БД
-                await _loadContacts();
+                
+                // Показываем уведомление
                 if (mounted) {
-                  setState(() => _connectionStatus = 'Подключено');
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('✓ Обновлено'),
