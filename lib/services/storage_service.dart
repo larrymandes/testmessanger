@@ -239,6 +239,34 @@ class StorageService {
         .toList();
   }
 
+  /// Удаление дубликатов сообщений (оставляет только самое старое по timestamp)
+  static Future<int> removeDuplicateMessages(String accountEmail, String contactEmail) async {
+    // Находим дубликаты по uid (оставляем только самое старое)
+    final duplicates = await _database!.rawQuery('''
+      SELECT uid, MIN(id) as keep_id
+      FROM messages
+      WHERE account_email = ? AND contact_email = ? AND uid IS NOT NULL
+      GROUP BY uid
+      HAVING COUNT(*) > 1
+    ''', [accountEmail, contactEmail]);
+
+    int deleted = 0;
+    for (final dup in duplicates) {
+      final uid = dup['uid'] as String;
+      final keepId = dup['keep_id'] as int;
+      
+      // Удаляем все кроме самого старого
+      final count = await _database!.delete(
+        'messages',
+        where: 'account_email = ? AND contact_email = ? AND uid = ? AND id != ?',
+        whereArgs: [accountEmail, contactEmail, uid, keepId],
+      );
+      deleted += count;
+    }
+
+    return deleted;
+  }
+
   static Future<bool> updateMessageStatus(
     String accountEmail,
     String uid,

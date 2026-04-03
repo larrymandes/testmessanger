@@ -282,6 +282,12 @@ class MessageService {
     );
     
     LoggerService.log('✅ Text message saved to DB');
+    
+    // ВАЖНО: Чистим дубликаты сразу после сохранения
+    final deleted = await StorageService.removeDuplicateMessages(accountEmail, from);
+    if (deleted > 0) {
+      LoggerService.log('🧹 Removed $deleted duplicate messages for $from');
+    }
   }
   
   /// Уведомление UI
