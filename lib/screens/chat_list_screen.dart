@@ -77,14 +77,7 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
       await _loadContacts();
       setState(() => _isLoading = false);
       
-      // Инициализируем ChatService (он сам загрузит ключи, подключится к IMAP и т.д.)
-      setState(() => _connectionStatus = 'Подключение...');
-      await _chatService.initialize();
-      
-      // Получаем данные аккаунта
-      _accountData = _chatService.accountData;
-      
-      // Регистрируем callback для обновления UI
+      // ВАЖНО: Регистрируем callback ДО инициализации!
       _chatService.addUICallback(() {
         LoggerService.log('ChatListScreen: UI callback triggered!');
         if (mounted) {
@@ -97,20 +90,19 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
         }
       });
       
+      // Инициализируем ChatService (он сам загрузит ключи, подключится к IMAP и т.д.)
+      setState(() => _connectionStatus = 'Подключение...');
+      await _chatService.initialize();
+      
+      // Получаем данные аккаунта
+      _accountData = _chatService.accountData;
+      
       setState(() => _connectionStatus = 'Подключено');
       
       // Запускаем периодический refresh UI
       _startPeriodicFetch();
       
       LoggerService.log('ChatListScreen: Initialization complete!');
-      
-      // ВАЖНО: Делаем fetch при старте (в фоне)
-      LoggerService.log('ChatListScreen: Initial fetch on startup...');
-      _chatService.fetchAndProcessNewMessages().then((_) {
-        LoggerService.log('ChatListScreen: Initial fetch completed!');
-      }).catchError((e) {
-        LoggerService.log('ChatListScreen: Initial fetch error: $e');
-      });
       
     } catch (e) {
       setState(() {
