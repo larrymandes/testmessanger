@@ -17,6 +17,10 @@ class ChatService {
   
   bool _initialized = false;
   
+  // Храним callbacks до инициализации MessageService
+  final List<Function()> _pendingUICallbacks = [];
+  final List<Function(List<String> uids, String status)> _pendingStatusCallbacks = [];
+  
   ChatService({
     required this.email,
     required this.password,
@@ -36,6 +40,16 @@ class ChatService {
       accountEmail: email,
       keyPair: _accountData.keyPair,
     );
+    
+    // 2.1. Регистрируем все pending callbacks
+    for (final callback in _pendingUICallbacks) {
+      _messageService.addUICallback(callback);
+    }
+    for (final callback in _pendingStatusCallbacks) {
+      _messageService.addStatusUpdateCallback(callback);
+    }
+    _pendingUICallbacks.clear();
+    _pendingStatusCallbacks.clear();
     
     // 3. Создаём EmailService
     _emailService = EmailService(
@@ -103,22 +117,46 @@ class ChatService {
   
   /// Регистрация UI callback
   void addUICallback(Function() callback) {
-    _messageService.addUICallback(callback);
+    if (_initialized) {
+      _messageService.addUICallback(callback);
+    } else {
+      // Сохраняем до инициализации
+      if (!_pendingUICallbacks.contains(callback)) {
+        _pendingUICallbacks.add(callback);
+        LoggerService.log('ChatService: UI callback queued (pending initialization)');
+      }
+    }
   }
   
   /// Удаление UI callback
   void removeUICallback(Function() callback) {
-    _messageService.removeUICallback(callback);
+    if (_initialized) {
+      _messageService.removeUICallback(callback);
+    } else {
+      _pendingUICallbacks.remove(callback);
+    }
   }
   
   /// Регистрация callback для обновления статуса сообщений
   void addStatusUpdateCallback(Function(List<String> uids, String status) callback) {
-    _messageService.addStatusUpdateCallback(callback);
+    if (_initialized) {
+      _messageService.addStatusUpdateCallback(callback);
+    } else {
+      // Сохраняем до инициализации
+      if (!_pendingStatusCallbacks.contains(callback)) {
+        _pendingStatusCallbacks.add(callback);
+        LoggerService.log('ChatService: Status callback queued (pending initialization)');
+      }
+    }
   }
   
   /// Удаление callback для обновления статуса
   void removeStatusUpdateCallback(Function(List<String> uids, String status) callback) {
-    _messageService.removeStatusUpdateCallback(callback);
+    if (_initialized) {
+      _messageService.removeStatusUpdateCallback(callback);
+    } else {
+      _pendingStatusCallbacks.remove(callback);
+    }
   }
   
   /// Отправка сообщения
