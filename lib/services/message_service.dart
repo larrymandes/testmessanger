@@ -90,6 +90,13 @@ class MessageService {
       return;
     }
     
+    // ВАЖНО: Проверяем что UID ещё НЕ обработан (защита от дублирования)
+    final alreadyProcessed = await StorageService.isUIDProcessed(accountEmail, uid);
+    if (alreadyProcessed) {
+      LoggerService.log('⏭️ UID=$uid already processed, skipping');
+      return;
+    }
+    
     // Пропускаем свои BCC копии
     if (from == accountEmail) {
       LoggerService.log('📤 BCC copy from myself, skipping');
