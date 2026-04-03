@@ -15,6 +15,7 @@ class EmailService {
   ImapClient? _imapClient;
   bool _isIdleRunning = false;
   bool _isFetching = false;
+  Future<List<MimeMessage>>? _currentFetch; // Текущий fetch для ожидания
   int _lastKnownExists = 0;
   int _lastUidNext = 0; // Как в Delta Chat - отслеживаем UIDNEXT
   int _uidValidity = 0; // Для проверки что ящик не пересоздан
@@ -263,14 +264,27 @@ class EmailService {
 
   // Получение новых сообщений (как Delta Chat - используем UIDNEXT)
   Future<List<MimeMessage>> fetchNewMessages({int lastSeenUid = 0}) async {
-    if (_isFetching) {
-      LoggerService.log('EmailService: Already fetching, returning empty');
-      return [];
+    // Если уже идёт fetch - ждём его завершения вместо возврата пустого списка
+    if (_isFetching && _currentFetch != null) {
+      LoggerService.log('EmailService: Already fetching, waiting for completion...');
+      return await _currentFetch!;
     }
     
     _isFetching = true;
     final fetchStopwatch = Stopwatch()..start();
     
+    // Сохраняем Future для других вызовов
+    _currentFetch = _doFetch(lastSeenUid, fetchStopwatch);
+    
+    try {
+      return await _currentFetch!;
+    } finally {
+      _isFetching = false;
+      _currentFetch = null;
+    }
+  }
+  
+  Future<List<MimeMessage>> _doFetch(int lastSeenUid, Stopwatch fetchStopwatch) async {
     try {
       if (_imapClient == null) {
         LoggerService.log('IMAP not connected, reconnecting...');
@@ -369,8 +383,6 @@ class EmailService {
         _isIdleRunning = false;
       }
       rethrow;
-    } finally {
-      _isFetching = false;
     }
   }
 

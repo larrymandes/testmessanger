@@ -58,8 +58,40 @@ class ChatService {
       }
     });
     
-    // 5. Подключаемся к IMAP (он сам установит sync point если нужно)
+    // 5. Проверяем первый запуск ДО подключения
+    final maxUIDBeforeConnect = await StorageService.getMaxProcessedUID(email);
+    final isFirstRun = maxUIDBeforeConnect == 0;
+    
+    if (isFirstRun) {
+      LoggerService.log('ChatService: First run detected - sync point will be set');
+    } else {
+      LoggerService.log('ChatService: Not first run (maxUID=$maxUIDBeforeConnect)');
+    }
+    
+    // 6. Подключаемся к IMAP (установит sync point если первый запуск)
     await _emailService.connectImap();
+    
+    // 7. ВАЖНО: Делаем начальный fetch ПОСЛЕ подключения
+    // НО только если это НЕ первый запуск (чтобы не фетчить старые письма)
+    if (!isFirstRun) {
+      LoggerService.log('ChatService: Doing initial fetch for missed messages...');
+      try {
+        final maxUID = await StorageService.getMaxProcessedUID(email);
+        final newMessages = await _emailService.fetchNewMessages(lastSeenUid: maxUID);
+        
+        if (newMessages.isNotEmpty) {
+          LoggerService.log('ChatService: Initial fetch - found ${newMessages.length} new messages');
+          await _messageService.processNewMessages(newMessages);
+        } else {
+          LoggerService.log('ChatService: Initial fetch - no new messages');
+        }
+      } catch (e) {
+        LoggerService.log('ChatService: Initial fetch error: $e');
+        // Не падаем, продолжаем работу
+      }
+    } else {
+      LoggerService.log('ChatService: First run - skipping initial fetch (sync point set)');
+    }
     
     _initialized = true;
     LoggerService.log('ChatService: Initialized successfully');
