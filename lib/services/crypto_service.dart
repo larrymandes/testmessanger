@@ -32,6 +32,30 @@ class CryptoService {
     return bytes;
   }
 
+  // Валидация публичного ключа
+  static bool isValidPublicKey(String pubkey) {
+    try {
+      // 1. Проверка длины (130 символов = 65 байт * 2)
+      if (pubkey.length != 130) return false;
+      
+      // 2. Проверка что начинается с "04" (uncompressed key)
+      if (!pubkey.startsWith('04')) return false;
+      
+      // 3. Проверка что только hex символы
+      final hexRegex = RegExp(r'^[0-9a-fA-F]+$');
+      if (!hexRegex.hasMatch(pubkey)) return false;
+      
+      // 4. Попытка создать ECPoint (проверка что ключ валидный)
+      final bytes = _hexToBytes(pubkey);
+      final params = ECCurve_secp256r1();
+      final point = params.curve.decodePoint(bytes);
+      
+      return point != null;
+    } catch (e) {
+      return false;
+    }
+  }
+
   // Импорт публичного ключа из hex
   static ECPublicKey importPublicKey(String hex) {
     final bytes = _hexToBytes(hex);

@@ -174,6 +174,13 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
         throw Exception('Нельзя добавить самого себя');
       }
 
+      // ✅ Валидация публичного ключа
+      LoggerService.log('QR: Validating public key...');
+      if (!CryptoService.isValidPublicKey(publicKey)) {
+        throw Exception('Неверный формат публичного ключа');
+      }
+      LoggerService.log('QR: ✅ Public key is valid');
+
       // Проверяем, не добавлен ли уже
       final existing = await StorageService.getContact(widget.chatService.email, contactEmail);
       if (existing != null) {

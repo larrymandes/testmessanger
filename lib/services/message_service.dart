@@ -207,6 +207,14 @@ class MessageService {
       return;
     }
     
+    // ✅ Валидация публичного ключа
+    LoggerService.log('👥 Validating public key...');
+    if (!CryptoService.isValidPublicKey(contactPubKey)) {
+      LoggerService.log('❌ Invalid public key format, skipping');
+      return;
+    }
+    LoggerService.log('👥 ✅ Public key is valid');
+    
     final existing = await StorageService.getContact(accountEmail, contactEmail);
     if (existing != null) {
       LoggerService.log('⚠️ Contact $contactEmail already exists, skipping');

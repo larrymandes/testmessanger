@@ -7,6 +7,7 @@ import '../services/chat_service.dart';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
 import '../services/logger_service.dart';
+import '../theme/chat_theme.dart';
 
 class ChatScreen extends StatefulWidget {
   final String contactEmail;
@@ -206,78 +207,99 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _handleSendPressed(String text) async {
-    final messageUID = '${DateTime.now().millisecondsSinceEpoch}_${DateTime.now().microsecond}';
     final now = DateTime.now().toUtc();
     
-    // Добавляем сообщение с статусом "отправляется"
-    final chatMessage = TextMessage(
-      id: messageUID,
-      authorId: widget.chatService.email,
-      createdAt: now,
-      text: text,
-      metadata: {'sending': true},
-    );
-
-    _chatController.insertMessage(chatMessage);
-
-    try {
-      // ВАЖНО: Сохраняем в БД СРАЗУ (до отправки) чтобы BCC не опередила
+    // 1. Разделяем текст на части для UI (чтобы показать сразу)
+    final parts = _splitTextForUI(text);
+    
+    LoggerService.log('ChatScreen: Sending ${parts.length} message(s)');
+    
+    // 2. Создаём и показываем ВСЕ сообщения СРАЗУ в UI
+    final messageUIDs = <String>[];
+    final chatMessages = <TextMessage>[];
+    
+    for (int i = 0; i < parts.length; i++) {
+      final messageUID = '${DateTime.now().millisecondsSinceEpoch}_${DateTime.now().microsecond}_$i';
+      messageUIDs.add(messageUID);
+      
+      // Показываем в UI сразу со статусом "отправляется"
+      final chatMessage = TextMessage(
+        id: messageUID,
+        authorId: widget.chatService.email,
+        createdAt: now,
+        text: parts[i],
+        metadata: {'sending': true},
+      );
+      
+      chatMessages.add(chatMessage);
+      _chatController.insertMessage(chatMessage);
+      
+      // Сохраняем в БД сразу
       await StorageService.saveMessage(
         accountEmail: widget.chatService.email,
         contactEmail: widget.contactEmail,
-        text: text,
+        text: parts[i],
         sent: true,
         timestamp: now.millisecondsSinceEpoch,
         status: 'sending',
         uid: messageUID,
-        messageId: null, // Message-ID пока нет
+        messageId: null,
       );
-      
-      // Создаём сообщение с UID
-      final messageWithUID = jsonEncode({
-        'text': text,
-        'uid': messageUID,
-      });
-
-      // Шифруем
-      final encrypted = await CryptoService.encryptMessage(
-        plaintext: messageWithUID,
-        recipientPubKeyHex: widget.contactPublicKey,
-        senderEmail: widget.chatService.email,
-        recipientEmail: widget.contactEmail,
-      );
-
-      // Отправляем с таймаутом 30 секунд
-      final messageId = await widget.chatService.sendMessage(
-        toEmail: widget.contactEmail,
-        encryptedPayload: jsonEncode(encrypted),
-      ).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw Exception('Таймаут отправки (30 сек)');
-        },
-      );
-
-      // Обновляем статус на "sent" и добавляем Message-ID
-      await StorageService.updateMessageStatus(widget.chatService.email, messageUID, 'sent');
-      
-      // Сохраняем Message-ID как обработанный (чтобы не обрабатывать свою копию)
-      await StorageService.addProcessedMessageId(widget.chatService.email, messageId);
-
-      // Обновляем статус на "отправлено"
-      final updatedMessage = chatMessage.copyWith(
-        sentAt: now,
-        metadata: null,
-      );
-      _chatController.updateMessage(chatMessage, updatedMessage);
-      
-      // Перезагружаем сообщения из БД чтобы синхронизировать
-      await _loadMessages();
-    } catch (e) {
-      LoggerService.log('Send error: $e');
-      
-      // Обновляем статус на "ошибка"
-      await StorageService.updateMessageStatus(widget.chatService.email, messageUID, 'error');
+    }
+    
+    // 3. Вызываем сервис для отправки (он сам применит rate limiting)
+    widget.chatService.sendTextMessageWithSplit(
+      toEmail: widget.contactEmail,
+      text: text,
+      recipientPublicKey: widget.contactPublicKey,
+      onStatusUpdate: (uid, status) async {
+        // Обновляем статус в БД
+        await StorageService.updateMessageStatus(
+          widget.chatService.email,
+          uid,
+          status,
+        );
+        
+        // Обновляем UI
+        if (mounted) {
+          final messages = _chatController.messages;
+          final messageIndex = messages.indexWhere((m) => m.id == uid);
+          if (messageIndex != -1) {
+            final oldMessage = messages[messageIndex] as TextMessage;
+            final updatedMessage = oldMessage.copyWith(
+              sentAt: status == 'sent' ? DateTime.now() : null,
+              metadata: status == 'error' ? {'error': true} : null,
+            );
+            _chatController.updateMessage(oldMessage, updatedMessage);
+          }
+        }
+      },
+    ).catchError((e) {
+      LoggerService.log('ChatScreen: Send error: $e');
+    });
+  }
+  
+  /// Разделение текста для UI (4096 символов)
+  List<String> _splitTextForUI(String text) {
+    const maxLength = 4096;
+    if (text.length <= maxLength) {
+      return [text];
+    }
+    
+    final parts = <String>[];
+    int start = 0;
+    
+    while (start < text.length) {
+      int end = start + maxLength;
+      if (end > text.length) {
+        end = text.length;
+      }
+      parts.add(text.substring(start, end));
+      start = end;
+    }
+    
+    return parts;
+  }
       
       final updatedMessage = chatMessage.copyWith(
         failedAt: now,
@@ -344,20 +366,14 @@ class _ChatScreenState extends State<ChatScreen> {
         chatController: _chatController,
         currentUserId: widget.chatService.email,
         onMessageSend: _handleSendPressed,
-        onMessageLongPress: _handleMessageLongPress, // Добавляем long press
+        onMessageLongPress: _handleMessageLongPress,
         resolveUser: (userId) async {
           return User(
             id: userId,
             name: userId == widget.chatService.email ? 'Вы' : widget.contactEmail,
           );
         },
-        theme: ChatTheme.dark().copyWith(
-          colors: ChatTheme.dark().colors.copyWith(
-            primary: const Color(0xFF2b5278),
-            surface: const Color(0xFF0e1621),
-            onSurface: Colors.white,
-          ),
-        ),
+        theme: TelegramChatTheme.createDarkTheme(),
       ),
     );
   }
