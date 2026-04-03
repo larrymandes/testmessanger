@@ -374,10 +374,9 @@ class _ChatScreenState extends State<ChatScreen> {
         },
         theme: ChatTheme.dark().copyWith(
           colors: ChatTheme.dark().colors.copyWith(
-            primary: const Color(0xFF3e88f7),      // accent_text_color
-            surface: const Color(0xFF1c1c1d),      // section_bg_color
-            onSurface: const Color(0xFFffffff),    // text_color
-            secondary: const Color(0xFF000000),    // bg_color
+            primary: const Color(0xFF2b5278),
+            surface: const Color(0xFF0e1621),
+            onSurface: Colors.white,
           ),
         ),
       ),
