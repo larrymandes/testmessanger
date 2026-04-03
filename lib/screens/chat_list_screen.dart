@@ -81,12 +81,8 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
       _chatService.addUICallback(() {
         LoggerService.log('ChatListScreen: UI callback triggered!');
         if (mounted) {
-          setState(() => _connectionStatus = 'Обновление...');
-          _loadContacts().then((_) {
-            if (mounted) {
-              setState(() => _connectionStatus = 'Подключено');
-            }
-          });
+          // Просто загружаем данные, БЕЗ изменения статуса
+          _loadContacts();
         }
       });
       
@@ -176,38 +172,21 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () async {
-              LoggerService.log('Manual refresh triggered');
-              setState(() => _connectionStatus = 'Обновление...');
-              try {
-                // Делаем fetch новых сообщений
-                // Callback сам загрузит контакты и обновит статус!
-                await _chatService.fetchAndProcessNewMessages();
-                
-                // Показываем уведомление
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✓ Обновлено'),
-                      duration: Duration(seconds: 1),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              } catch (e) {
+            onPressed: () {
+              // Просто делаем то же что при запуске
+              _chatService.fetchAndProcessNewMessages().catchError((e) {
                 LoggerService.log('Manual refresh error: $e');
                 if (mounted) {
-                  setState(() => _connectionStatus = 'Ошибка');
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('✗ Ошибка обновления: $e'),
+                      content: Text('✗ Ошибка: $e'),
                       backgroundColor: Colors.red,
                       duration: const Duration(seconds: 3),
                       behavior: SnackBarBehavior.floating,
                     ),
                   );
                 }
-              }
+              });
             },
           ),
           IconButton(

@@ -220,6 +220,83 @@ Future<void> _handleMyNewType(Map<String, dynamic> data, String from) async {
 final data = await StorageService.getMyNewTypeData(email);
 ```
 
+### Паттерн 9: Pending Callbacks (для late инициализации)
+
+```dart
+// В сервисе с late полями
+class MyService {
+  late final SubService _subService;
+  bool _initialized = false;
+  
+  // Храним callbacks до инициализации
+  final List<Function()> _pendingCallbacks = [];
+  
+  void addCallback(Function() callback) {
+    if (_initialized) {
+      _subService.addCallback(callback);  // Сразу регистрируем
+    } else {
+      _pendingCallbacks.add(callback);  // Сохраняем на потом
+    }
+  }
+  
+  Future<void> initialize() async {
+    _subService = SubService();
+    
+    // Передаём все pending callbacks
+    for (final callback in _pendingCallbacks) {
+      _subService.addCallback(callback);
+    }
+    _pendingCallbacks.clear();
+    
+    _initialized = true;
+  }
+}
+```
+
+### Паттерн 10: НЕ дублируй действия callback
+
+```dart
+// ❌ ПЛОХО - дублирование
+Future<void> _onRefresh() async {
+  await _service.fetchData();  // → вызывает callback
+  await _loadData();           // ← callback уже это делает!
+}
+
+// ✅ ХОРОШО - callback делает всё
+Future<void> _onRefresh() async {
+  await _service.fetchData();  // → callback сам загрузит данные
+  // Показываем уведомление
+  _showSnackBar('✓ Обновлено');
+}
+```
+
+### Паттерн 11: Безопасная отправка с сохранением
+
+```dart
+// ✅ ПРАВИЛЬНЫЙ порядок
+Future<void> _sendInvite() async {
+  try {
+    // 1. СНАЧАЛА отправляем
+    await _service.sendInvite(email, pubkey);
+    
+    // 2. ПОТОМ сохраняем (только если успешно)
+    await StorageService.saveContact(email, pubkey);
+    
+    _showSuccess('Контакт добавлен');
+  } catch (e) {
+    // Контакт НЕ сохранён, можно повторить
+    _showError('Ошибка: $e');
+  }
+}
+
+// ❌ НЕПРАВИЛЬНЫЙ порядок
+Future<void> _sendInvite() async {
+  await StorageService.saveContact(email, pubkey);  // ❌ Сначала
+  await _service.sendInvite(email, pubkey);         // ❌ Потом
+  // Если ошибка → контакт в БД, но invite не отправлен!
+}
+```
+
 ---
 
 ## ЛОГИРОВАНИЕ
@@ -284,6 +361,40 @@ class MyService {
     _notifyUI(); // ✅ Уведомляем через callback
   }
 }
+```
+
+### ❌ Callback ДО инициализации late поля:
+```dart
+// ПЛОХО
+void addCallback(Function() callback) {
+  _lateService.addCallback(callback);  // ❌ Crash если не инициализирован!
+}
+```
+
+### ✅ Правильно - pending callbacks:
+```dart
+// ХОРОШО
+void addCallback(Function() callback) {
+  if (_initialized) {
+    _lateService.addCallback(callback);
+  } else {
+    _pendingCallbacks.add(callback);  // ✅ Сохраняем на потом
+  }
+}
+```
+
+### ❌ Дублирование действий callback:
+```dart
+// ПЛОХО
+await _service.fetchData();  // → callback загружает данные
+await _loadData();           // ❌ Дублирование!
+```
+
+### ✅ Правильно - callback делает всё:
+```dart
+// ХОРОШО
+await _service.fetchData();  // → callback сам загрузит данные
+// Только показываем уведомление
 ```
 
 ---
