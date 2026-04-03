@@ -299,43 +299,6 @@ class _ChatScreenState extends State<ChatScreen> {
     
     return parts;
   }
-      
-      final updatedMessage = chatMessage.copyWith(
-        failedAt: now,
-        metadata: {'error': true},
-      );
-      _chatController.updateMessage(chatMessage, updatedMessage);
-      
-      // Перезагружаем чтобы показать красное сообщение
-      await _loadMessages();
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✗ Ошибка отправки: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 10),
-            behavior: SnackBarBehavior.floating,
-            action: SnackBarAction(
-              label: 'Копировать',
-              textColor: Colors.white,
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: 'Ошибка отправки: $e'));
-                ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Ошибка скопирована'),
-                    duration: Duration(seconds: 2),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-            ),
-          ),
-        );
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
