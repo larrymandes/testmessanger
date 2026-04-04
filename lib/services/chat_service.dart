@@ -230,9 +230,12 @@ class ChatService {
         
         LoggerService.log('ChatService: Sending part ${i + 1}/${parts.length} (${parts[i].length} chars)');
         
-        // Шифруем
+        // Шифруем (добавляем UID в JSON!)
         final encrypted = await CryptoService.encryptMessage(
-          plaintext: jsonEncode({'text': parts[i]}),
+          plaintext: jsonEncode({
+            'text': parts[i],
+            'uid': uids[i],  // ← UID для read receipts!
+          }),
           recipientPubKeyHex: recipientPublicKey,
           senderEmail: email,
           recipientEmail: toEmail,
@@ -300,9 +303,12 @@ class ChatService {
         
         LoggerService.log('ChatService: Sending part ${i + 1}/${parts.length} (${parts[i].length} chars)');
         
-        // Шифруем
+        // Шифруем (добавляем UID в JSON!)
         final encrypted = await CryptoService.encryptMessage(
-          plaintext: jsonEncode({'text': parts[i]}),
+          plaintext: jsonEncode({
+            'text': parts[i],
+            'uid': uids[i],  // ← UID для read receipts!
+          }),
           recipientPubKeyHex: recipientPublicKey,
           senderEmail: email,
           recipientEmail: toEmail,
