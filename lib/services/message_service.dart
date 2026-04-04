@@ -283,7 +283,7 @@ class MessageService {
   /// Отправка read receipt для контакта (вызывается из UI)
   Future<void> sendReadReceipts({
     required String contactEmail,
-    required Function(String toEmail, String payload) sendMessageCallback,
+    required Function(String toEmail, Map<String, String> encrypted) sendMessageCallback,
   }) async {
     LoggerService.log('📖 MessageService: Checking for unread messages from $contactEmail');
     
@@ -334,7 +334,7 @@ class MessageService {
         );
         
         // Отправляем через callback (ChatService.sendMessage)
-        await sendMessageCallback(contactEmail, jsonEncode(encrypted));
+        await sendMessageCallback(contactEmail, encrypted);
         
         // Помечаем что read receipt отправлен
         await StorageService.markMessageReadSentByMessageId(accountEmail, messageId);

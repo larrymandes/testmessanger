@@ -544,11 +544,11 @@ class ChatService {
     // Вызываем MessageService с callback для отправки
     await _messageService.sendReadReceipts(
       contactEmail: contactEmail,
-      sendMessageCallback: (toEmail, payload) async {
+      sendMessageCallback: (toEmail, encrypted) async {
         // Отправляем БЕЗ BCC (read receipts не нужны себе)
         await sendMessage(
           toEmail: toEmail,
-          encryptedPayload: payload,
+          encryptedPayload: jsonEncode(encrypted),
           bccToSelf: false,
         );
       },
