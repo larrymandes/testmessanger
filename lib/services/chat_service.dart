@@ -203,11 +203,11 @@ class ChatService {
     required String toEmail,
     required String text,
     required String recipientPublicKey,
-    required List<String> uids,
-    required Function(String uid, String status) onStatusUpdate,
+    required List<String> messageIds, // ← Теперь это Message-IDs!
+    required Function(String messageId, String status) onStatusUpdate,
   }) async {
     LoggerService.log('ChatService: sendTextMessageWithUIDs() called');
-    LoggerService.log('ChatService: Text length: ${text.length} chars, UIDs: ${uids.length}');
+    LoggerService.log('ChatService: Text length: ${text.length} chars, Message-IDs: ${messageIds.length}');
     
     // 1. Валидация публичного ключа
     if (!CryptoService.isValidPublicKey(recipientPublicKey)) {
@@ -218,8 +218,8 @@ class ChatService {
     final parts = _splitTextIntoParts(text);
     LoggerService.log('ChatService: Split into ${parts.length} part(s)');
     
-    if (parts.length != uids.length) {
-      throw Exception('UIDs count (${uids.length}) != parts count (${parts.length})');
+    if (parts.length != messageIds.length) {
+      throw Exception('Message-IDs count (${messageIds.length}) != parts count (${parts.length})');
     }
     
     // 3. Отправляем каждую часть с rate limiting
@@ -230,7 +230,7 @@ class ChatService {
         
         LoggerService.log('ChatService: Sending part ${i + 1}/${parts.length} (${parts[i].length} chars)');
         
-        // Шифруем (БЕЗ UID - используем Message-ID!)
+        // Шифруем
         final encrypted = await CryptoService.encryptMessage(
           plaintext: jsonEncode({
             'text': parts[i],
@@ -240,37 +240,37 @@ class ChatService {
           recipientEmail: toEmail,
         );
         
-        // Отправляем и получаем Message-ID
-        final messageId = await sendMessage(
+        // Отправляем с заданным Message-ID
+        await _sendMessageWithId(
           toEmail: toEmail,
           encryptedPayload: jsonEncode(encrypted),
+          messageId: messageIds[i],
         );
         
-        // Сохраняем в БД с Message-ID
+        // Сохраняем в БД
         await StorageService.saveMessage(
+          messageId: messageIds[i],
           accountEmail: email,
           contactEmail: toEmail,
           text: parts[i],
           sent: true,
           timestamp: DateTime.now().millisecondsSinceEpoch,
           status: 'sent',
-          uid: uids[i],
-          messageId: messageId,
         );
         
         // Добавляем timestamp для rate limiting
         _addSendTimestamp();
         
-        LoggerService.log('ChatService: ✅ Part ${i + 1}/${parts.length} sent (Message-ID: $messageId)');
+        LoggerService.log('ChatService: ✅ Part ${i + 1}/${parts.length} sent (Message-ID: ${messageIds[i]})');
         
         // Уведомляем UI об успешной отправке
-        onStatusUpdate(uids[i], 'sent');
+        onStatusUpdate(messageIds[i], 'sent');
         
       } catch (e) {
         LoggerService.log('ChatService: ❌ Part ${i + 1}/${parts.length} error: $e');
         
         // Уведомляем UI об ошибке
-        onStatusUpdate(uids[i], 'error');
+        onStatusUpdate(messageIds[i], 'error');
         
         rethrow;
       }
@@ -332,14 +332,13 @@ class ChatService {
         
         // Сохраняем в БД с Message-ID
         await StorageService.saveMessage(
+          messageId: messageId,
           accountEmail: email,
           contactEmail: toEmail,
           text: parts[i],
           sent: true,
           timestamp: DateTime.now().millisecondsSinceEpoch,
           status: 'sent',
-          uid: uids[i],
-          messageId: messageId,
         );
         
         // Добавляем timestamp для rate limiting
@@ -430,6 +429,21 @@ class ChatService {
     return await _emailService.sendMessage(
       toEmail: toEmail,
       encryptedPayload: encryptedPayload,
+      bccToSelf: bccToSelf,
+    );
+  }
+  
+  /// Отправка сообщения с заданным Message-ID (для UI)
+  Future<void> _sendMessageWithId({
+    required String toEmail,
+    required String encryptedPayload,
+    required String messageId,
+    bool bccToSelf = true,
+  }) async {
+    await _emailService.sendMessageWithId(
+      toEmail: toEmail,
+      encryptedPayload: encryptedPayload,
+      messageId: messageId,
       bccToSelf: bccToSelf,
     );
   }

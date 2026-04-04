@@ -97,13 +97,27 @@ class MessageService {
       return;
     }
     
-    // Пропускаем свои BCC копии
+    // ВАЖНО: Проверяем Message-ID (защита от дублирования при повторном fetch)
+    if (messageId.isNotEmpty) {
+      final messageIdProcessed = await StorageService.isMessageIdProcessed(accountEmail, messageId);
+      if (messageIdProcessed) {
+        LoggerService.log('⏭️ Message-ID=$messageId already processed, skipping');
+        // Помечаем UID тоже (на всякий случай)
+        await StorageService.addProcessedUID(accountEmail, uid);
+        return;
+      }
+    }
+    
+    // СРАЗУ помечаем как обработанное (чтобы избежать race condition)
+    await StorageService.addProcessedUID(accountEmail, uid);
+    if (messageId.isNotEmpty) {
+      await StorageService.addProcessedMessageId(accountEmail, messageId);
+    }
+    LoggerService.log('✅ Marked UID=$uid as processed (Message-ID: ${messageId.isNotEmpty ? messageId : "none"})');
+    
+    // Пропускаем свои BCC копии (но помечаем как обработанные - уже сделано выше)
     if (from == accountEmail) {
       LoggerService.log('📤 BCC copy from myself, skipping');
-      await StorageService.addProcessedUID(accountEmail, uid);
-      if (messageId.isNotEmpty) {
-        await StorageService.addProcessedMessageId(accountEmail, messageId);
-      }
       return;
     }
     
@@ -129,10 +143,6 @@ class MessageService {
       LoggerService.log('🔐 Encrypted JSON parsed, keys: ${encrypted.keys.toList()}');
     } catch (e) {
       LoggerService.log('❌ Failed to parse encrypted JSON: $e');
-      await StorageService.addProcessedUID(accountEmail, uid);
-      if (messageId.isNotEmpty) {
-        await StorageService.addProcessedMessageId(accountEmail, messageId);
-      }
       return;
     }
     
@@ -147,10 +157,6 @@ class MessageService {
       LoggerService.log('📝 Plaintext: $plaintext');
     } catch (e) {
       LoggerService.log('❌ Decryption failed: $e');
-      await StorageService.addProcessedUID(accountEmail, uid);
-      if (messageId.isNotEmpty) {
-        await StorageService.addProcessedMessageId(accountEmail, messageId);
-      }
       return;
     }
     
@@ -180,12 +186,6 @@ class MessageService {
       LoggerService.log('⚠️ Not JSON or parse error: $e');
       LoggerService.log('📝 Treating as plain text message');
       await _handleTextMessage({'text': plaintext, 'uid': uid.toString()}, from, uid, messageId);
-    }
-    
-    // Помечаем как обработанное
-    await StorageService.addProcessedUID(accountEmail, uid);
-    if (messageId.isNotEmpty) {
-      await StorageService.addProcessedMessageId(accountEmail, messageId);
     }
     
     LoggerService.log('✅ Message UID=$uid processed');
@@ -266,7 +266,7 @@ class MessageService {
     LoggerService.log('📖 Read receipt for message_id=$originalMessageId from=$from');
     
     // Обновляем статус по message_id
-    final success = await StorageService.updateMessageStatusByMessageId(
+    final success = await StorageService.updateMessageStatus(
       accountEmail, 
       originalMessageId, 
       'read'
@@ -338,7 +338,7 @@ class MessageService {
         await sendMessageCallback(contactEmail, encrypted);
         
         // Помечаем что read receipt отправлен
-        await StorageService.markMessageReadSentByMessageId(accountEmail, messageId);
+        await StorageService.markMessageReadSent(accountEmail, messageId);
         sent++;
         
         LoggerService.log('📖 ✅ Read receipt sent for message_id=$messageId');
@@ -365,25 +365,24 @@ class MessageService {
   Future<void> _handleTextMessage(Map<String, dynamic> message, String from, int uid, String messageId) async {
     LoggerService.log('💬 TEXT message handler started');
     LoggerService.log('💬 Message data: $message');
-    LoggerService.log('💬 From: $from, UID: $uid');
+    LoggerService.log('💬 From: $from, UID: $uid, Message-ID: $messageId');
+    
+    // ВАЖНО: Message-ID ОБЯЗАТЕЛЕН для сохранения!
+    if (messageId.isEmpty) {
+      LoggerService.log('❌ No Message-ID, cannot save message!');
+      return;
+    }
     
     await StorageService.saveMessage(
+      messageId: messageId,
       accountEmail: accountEmail,
       contactEmail: from,
       text: message['text'],
       sent: false,
       timestamp: DateTime.now().millisecondsSinceEpoch,
-      uid: message['uid'],
-      messageId: messageId.isNotEmpty ? messageId : null,
     );
     
-    LoggerService.log('✅ Text message saved to DB');
-    
-    // ВАЖНО: Чистим дубликаты сразу после сохранения
-    final deleted = await StorageService.removeDuplicateMessages(accountEmail, from);
-    if (deleted > 0) {
-      LoggerService.log('🧹 Removed $deleted duplicate messages for $from');
-    }
+    LoggerService.log('✅ Text message saved to DB with Message-ID: $messageId');
   }
   
   /// Уведомление UI

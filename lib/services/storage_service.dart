@@ -4,6 +4,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'logger_service.dart';
 
 class StorageService {
   static Database? _database;
@@ -27,7 +28,7 @@ class StorageService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // ← Увеличиваем версию для миграции!
       onCreate: (db, version) async {
         // Таблица аккаунтов
         await db.execute('''
@@ -48,18 +49,16 @@ class StorageService {
           )
         ''');
 
-        // Таблица сообщений
+        // Таблица сообщений (НОВАЯ СХЕМА - Message-ID как PRIMARY KEY)
         await db.execute('''
           CREATE TABLE messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message_id TEXT PRIMARY KEY,
             account_email TEXT NOT NULL,
             contact_email TEXT NOT NULL,
             text TEXT NOT NULL,
             sent INTEGER NOT NULL,
             timestamp INTEGER NOT NULL,
             status TEXT,
-            uid TEXT,
-            message_id TEXT,
             read_sent INTEGER DEFAULT 0
           )
         ''');
@@ -73,7 +72,7 @@ class StorageService {
           )
         ''');
 
-        // Таблица обработанных UID
+        // Таблица обработанных UID (для IMAP дедупликации)
         await db.execute('''
           CREATE TABLE processed_uids (
             account_email TEXT NOT NULL,
@@ -81,6 +80,42 @@ class StorageService {
             PRIMARY KEY (account_email, uid)
           )
         ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          // Миграция с версии 1 на 2
+          LoggerService.log('DB Migration: v1 -> v2 (Message-ID as PRIMARY KEY)');
+          
+          // 1. Создаём новую таблицу messages
+          await db.execute('''
+            CREATE TABLE messages_new (
+              message_id TEXT PRIMARY KEY,
+              account_email TEXT NOT NULL,
+              contact_email TEXT NOT NULL,
+              text TEXT NOT NULL,
+              sent INTEGER NOT NULL,
+              timestamp INTEGER NOT NULL,
+              status TEXT,
+              read_sent INTEGER DEFAULT 0
+            )
+          ''');
+          
+          // 2. Копируем данные (только с message_id!)
+          await db.execute('''
+            INSERT INTO messages_new (message_id, account_email, contact_email, text, sent, timestamp, status, read_sent)
+            SELECT message_id, account_email, contact_email, text, sent, timestamp, status, read_sent
+            FROM messages
+            WHERE message_id IS NOT NULL AND message_id != ''
+          ''');
+          
+          // 3. Удаляем старую таблицу
+          await db.execute('DROP TABLE messages');
+          
+          // 4. Переименовываем новую
+          await db.execute('ALTER TABLE messages_new RENAME TO messages');
+          
+          LoggerService.log('DB Migration: ✅ Complete!');
+        }
       },
     );
   }
@@ -193,25 +228,23 @@ class StorageService {
   // === Сообщения ===
 
   static Future<void> saveMessage({
+    required String messageId, // ← Теперь ОБЯЗАТЕЛЬНЫЙ!
     required String accountEmail,
     required String contactEmail,
     required String text,
     required bool sent,
     required int timestamp,
     String? status,
-    String? uid,
-    String? messageId,
   }) async {
     await _database!.insert('messages', {
+      'message_id': messageId,
       'account_email': accountEmail,
       'contact_email': contactEmail,
       'text': text,
       'sent': sent ? 1 : 0,
       'timestamp': timestamp,
       'status': status,
-      'uid': uid,
-      'message_id': messageId,
-    });
+    }, conflictAlgorithm: ConflictAlgorithm.replace); // ← REPLACE для дедупликации!
   }
 
   static Future<List<Map<String, dynamic>>> getMessages(
@@ -227,62 +260,25 @@ class StorageService {
 
     return results
         .map((r) => {
-              'id': r['id'],
+              'message_id': r['message_id'],
               'text': r['text'],
               'sent': r['sent'] == 1,
               'timestamp': r['timestamp'],
               'status': r['status'],
-              'uid': r['uid'],
-              'message_id': r['message_id'],
               'readSent': r['read_sent'] == 1,
             })
         .toList();
   }
 
-  /// Удаление дубликатов сообщений (оставляет только самое старое по timestamp)
+  /// Удаление дубликатов сообщений (теперь автоматически через REPLACE)
   static Future<int> removeDuplicateMessages(String accountEmail, String contactEmail) async {
-    // Находим дубликаты по uid (оставляем только самое старое)
-    final duplicates = await _database!.rawQuery('''
-      SELECT uid, MIN(id) as keep_id
-      FROM messages
-      WHERE account_email = ? AND contact_email = ? AND uid IS NOT NULL
-      GROUP BY uid
-      HAVING COUNT(*) > 1
-    ''', [accountEmail, contactEmail]);
-
-    int deleted = 0;
-    for (final dup in duplicates) {
-      final uid = dup['uid'] as String;
-      final keepId = dup['keep_id'] as int;
-      
-      // Удаляем все кроме самого старого
-      final count = await _database!.delete(
-        'messages',
-        where: 'account_email = ? AND contact_email = ? AND uid = ? AND id != ?',
-        whereArgs: [accountEmail, contactEmail, uid, keepId],
-      );
-      deleted += count;
-    }
-
-    return deleted;
+    // С новой схемой (message_id PRIMARY KEY + REPLACE) дубликаты невозможны!
+    // Этот метод оставлен для совместимости, но ничего не делает
+    return 0;
   }
 
+  /// Обновление статуса по message_id
   static Future<bool> updateMessageStatus(
-    String accountEmail,
-    String uid,
-    String status,
-  ) async {
-    final count = await _database!.update(
-      'messages',
-      {'status': status},
-      where: 'account_email = ? AND uid = ?',
-      whereArgs: [accountEmail, uid],
-    );
-    return count > 0;
-  }
-
-  /// Обновление статуса по message_id (для read receipts)
-  static Future<bool> updateMessageStatusByMessageId(
     String accountEmail,
     String messageId,
     String status,
@@ -296,31 +292,20 @@ class StorageService {
     return count > 0;
   }
 
+  /// Удаление сообщения по message_id
   static Future<void> deleteMessage(
     String accountEmail,
-    String uid,
+    String messageId,
   ) async {
     await _database!.delete(
       'messages',
-      where: 'account_email = ? AND uid = ?',
-      whereArgs: [accountEmail, uid],
-    );
-  }
-
-  static Future<void> markMessageReadSent(
-    String accountEmail,
-    String uid,
-  ) async {
-    await _database!.update(
-      'messages',
-      {'read_sent': 1},
-      where: 'account_email = ? AND uid = ?',
-      whereArgs: [accountEmail, uid],
+      where: 'account_email = ? AND message_id = ?',
+      whereArgs: [accountEmail, messageId],
     );
   }
 
   /// Пометить что read receipt отправлен (по message_id)
-  static Future<void> markMessageReadSentByMessageId(
+  static Future<void> markMessageReadSent(
     String accountEmail,
     String messageId,
   ) async {

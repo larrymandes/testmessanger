@@ -453,10 +453,48 @@ class EmailService {
     required String encryptedPayload,
     bool bccToSelf = true,
   }) async {
+    // Генерируем Message-ID
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final random = DateTime.now().microsecond;
+    final messageId = '<$timestamp.$random@${email.split('@')[1]}>';
+    
+    await _sendMessageInternal(
+      toEmail: toEmail,
+      encryptedPayload: encryptedPayload,
+      messageId: messageId,
+      bccToSelf: bccToSelf,
+    );
+    
+    return messageId;
+  }
+  
+  // Отправка сообщения с заданным Message-ID
+  Future<void> sendMessageWithId({
+    required String toEmail,
+    required String encryptedPayload,
+    required String messageId,
+    bool bccToSelf = true,
+  }) async {
+    await _sendMessageInternal(
+      toEmail: toEmail,
+      encryptedPayload: encryptedPayload,
+      messageId: messageId,
+      bccToSelf: bccToSelf,
+    );
+  }
+  
+  // Внутренний метод отправки
+  Future<void> _sendMessageInternal({
+    required String toEmail,
+    required String encryptedPayload,
+    required String messageId,
+    bool bccToSelf = true,
+  }) async {
     final startTime = DateTime.now();
     LoggerService.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     LoggerService.log('SMTP: Starting send to $toEmail');
     LoggerService.log('SMTP: Payload size: ${encryptedPayload.length} bytes');
+    LoggerService.log('SMTP: Message-ID: $messageId');
     
     SmtpClient? client;
     
@@ -521,11 +559,8 @@ class EmailService {
         rethrow;
       }
 
-      // 6. Генерация Message-ID
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final random = DateTime.now().microsecond;
-      final messageId = '<$timestamp.$random@${email.split('@')[1]}>';
-      LoggerService.log('SMTP [6/9]: Generated Message-ID: $messageId');
+      // 6. Message-ID уже передан
+      LoggerService.log('SMTP [6/9]: Using Message-ID: $messageId');
       
       // 7. Построение сообщения
       LoggerService.log('SMTP [7/9]: Building MIME message');
@@ -571,8 +606,6 @@ class EmailService {
         LoggerService.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         LoggerService.log('SMTP: ✅ SUCCESS in ${duration.inMilliseconds}ms');
         LoggerService.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        
-        return messageId; // ← Возвращаем Message-ID!
         
       } catch (e) {
         LoggerService.log('SMTP [7/9]: ✗ Message build failed: $e');

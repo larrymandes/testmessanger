@@ -97,14 +97,14 @@ class _ChatScreenState extends State<ChatScreen> {
   }
   
   /// Обновление статуса сообщений без перезагрузки
-  void _updateMessageStatuses(List<String> uids, String status) {
-    LoggerService.log('ChatScreen: Updating ${uids.length} messages to status "$status"');
+  void _updateMessageStatuses(List<String> messageIds, String status) {
+    LoggerService.log('ChatScreen: Updating ${messageIds.length} messages to status "$status"');
     
     final messages = _chatController.messages;
     final now = DateTime.now();
     
-    for (final uid in uids) {
-      final messageIndex = messages.indexWhere((m) => m.id == uid);
+    for (final messageId in messageIds) {
+      final messageIndex = messages.indexWhere((m) => m.id == messageId);
       if (messageIndex == -1) continue;
       
       final oldMessage = messages[messageIndex];
@@ -124,7 +124,7 @@ class _ChatScreenState extends State<ChatScreen> {
       
       // Обновляем сообщение в контроллере (без перезагрузки всего списка)
       _chatController.updateMessage(oldMessage, updatedMessage);
-      LoggerService.log('ChatScreen: ✅ Message $uid updated to "$status"');
+      LoggerService.log('ChatScreen: ✅ Message $messageId updated to "$status"');
     }
   }
 
@@ -132,15 +132,15 @@ class _ChatScreenState extends State<ChatScreen> {
     final timestamp = DateTime.fromMillisecondsSinceEpoch(msg['timestamp']);
     final isSent = msg['sent'] == 1 || msg['sent'] == true;
     final status = msg['status'] ?? 'sent';
-    final uid = msg['uid'] ?? msg['id'].toString();
+    final messageId = msg['message_id'] as String;
     
     // Логируем статус для отладки read receipts
     if (isSent) {
-      LoggerService.log('ChatScreen: Message $uid status="$status" (sent=${isSent})');
+      LoggerService.log('ChatScreen: Message $messageId status="$status" (sent=${isSent})');
     }
     
     return TextMessage(
-      id: uid,
+      id: messageId,
       authorId: isSent ? widget.chatService.email : widget.contactEmail,
       createdAt: timestamp,
       text: msg['text'],
@@ -176,15 +176,18 @@ class _ChatScreenState extends State<ChatScreen> {
     
     LoggerService.log('ChatScreen: Sending ${parts.length} message(s)');
     
-    // 2. Генерируем UIDs и показываем сообщения СРАЗУ
-    final uids = <String>[];
+    // 2. Генерируем Message-IDs и показываем сообщения СРАЗУ
+    final messageIds = <String>[];
     for (int i = 0; i < parts.length; i++) {
-      final uid = '${DateTime.now().millisecondsSinceEpoch}_${DateTime.now().microsecond}_$i';
-      uids.add(uid);
+      // Генерируем Message-ID (как SMTP)
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final random = DateTime.now().microsecond;
+      final messageId = '<$timestamp.$random.${i}@${widget.chatService.email.split('@')[1]}>';
+      messageIds.add(messageId);
       
       // Показываем в UI сразу
       final chatMessage = TextMessage(
-        id: uid,
+        id: messageId,
         authorId: widget.chatService.email,
         createdAt: now,
         text: parts[i],
@@ -195,43 +198,42 @@ class _ChatScreenState extends State<ChatScreen> {
       
       // Сохраняем в БД
       await StorageService.saveMessage(
+        messageId: messageId,
         accountEmail: widget.chatService.email,
         contactEmail: widget.contactEmail,
         text: parts[i],
         sent: true,
         timestamp: now.millisecondsSinceEpoch,
         status: 'sending',
-        uid: uid,
-        messageId: null,
       );
     }
     
     // 3. Отправляем в фоне с callback для обновления статусов
-    _sendInBackground(text, uids);
+    _sendInBackground(text, messageIds);
   }
   
   /// Отправка в фоне
-  void _sendInBackground(String text, List<String> uids) async {
+  void _sendInBackground(String text, List<String> messageIds) async {
     try {
       await widget.chatService.sendTextMessageWithUIDs(
         toEmail: widget.contactEmail,
         text: text,
         recipientPublicKey: widget.contactPublicKey,
-        uids: uids,
-        onStatusUpdate: (uid, status) async {
-          LoggerService.log('ChatScreen: Status update for $uid: $status');
+        messageIds: messageIds,
+        onStatusUpdate: (messageId, status) async {
+          LoggerService.log('ChatScreen: Status update for $messageId: $status');
           
           // Обновляем статус в БД
           await StorageService.updateMessageStatus(
             widget.chatService.email,
-            uid,
+            messageId,
             status,
           );
           
           // Обновляем UI
           if (mounted) {
             final messages = _chatController.messages;
-            final messageIndex = messages.indexWhere((m) => m.id == uid);
+            final messageIndex = messages.indexWhere((m) => m.id == messageId);
             if (messageIndex != -1) {
               final oldMessage = messages[messageIndex] as TextMessage;
               final updatedMessage = oldMessage.copyWith(
