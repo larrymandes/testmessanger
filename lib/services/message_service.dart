@@ -160,6 +160,7 @@ class MessageService {
       LoggerService.log('✅ Plaintext JSON parsed');
       LoggerService.log('📋 Type: ${parsed['type']}');
       LoggerService.log('📋 Keys: ${parsed.keys.toList()}');
+      LoggerService.log('📋 Full parsed data: $parsed');
       
       if (parsed['type'] == 'invite') {
         LoggerService.log('👥 Processing INVITE');
