@@ -197,6 +197,7 @@ class MessageService {
     
     final contactEmail = invite['email'] as String;
     final contactPubKey = invite['pubkey'] as String;
+    final expectedFingerprint = invite['fingerprint'] as String?;
     
     LoggerService.log('👥 Contact email: $contactEmail');
     LoggerService.log('👥 Contact pubkey length: ${contactPubKey.length}');
@@ -214,6 +215,24 @@ class MessageService {
       return;
     }
     LoggerService.log('👥 ✅ Public key is valid');
+    
+    // 🔒 ПРОВЕРКА FINGERPRINT (защита от MITM)
+    if (expectedFingerprint != null && expectedFingerprint.isNotEmpty) {
+      LoggerService.log('👥 Verifying fingerprint...');
+      final actualFingerprint = await CryptoService.getEmojiFingerprint(contactPubKey);
+      
+      if (actualFingerprint != expectedFingerprint) {
+        LoggerService.log('❌ MITM ATTACK DETECTED! Fingerprints do not match!');
+        LoggerService.log('❌ Expected: $expectedFingerprint');
+        LoggerService.log('❌ Actual: $actualFingerprint');
+        // НЕ СОХРАНЯЕМ КОНТАКТ!
+        return;
+      }
+      
+      LoggerService.log('👥 ✅ Fingerprint verified!');
+    } else {
+      LoggerService.log('⚠️ No fingerprint in invite (old version?)');
+    }
     
     final existing = await StorageService.getContact(accountEmail, contactEmail);
     if (existing != null) {

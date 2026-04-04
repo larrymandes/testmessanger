@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:math' show Random;
 import 'package:pointycastle/export.dart' hide State;
+import 'emoji_list.dart';
 
 class CryptoService {
   // Генерация ключевой пары ECDH P-256
@@ -161,6 +162,26 @@ class CryptoService {
     // Берём первые 32 символа и форматируем
     final formatted = hashHex.substring(0, 32);
     return RegExp('.{1,4}').allMatches(formatted).map((m) => m.group(0)).join(' ');
+  }
+  
+  // Генерация emoji fingerprint (как в Telegram!)
+  static Future<String> getEmojiFingerprint(String publicKeyHex) async {
+    final bytes = _hexToBytes(publicKeyHex);
+    final digest = SHA256Digest();
+    final hash = digest.process(bytes);
+    
+    // Импортируем список эмодзи
+    final emojis = EmojiList.all;
+    
+    // Берём 5 эмодзи из хеша
+    final result = <String>[];
+    for (int i = 0; i < 5; i++) {
+      // Берём 2 байта из хеша для каждого эмодзи
+      final index = (hash[i * 2] << 8 | hash[i * 2 + 1]) % emojis.length;
+      result.add(emojis[index]);
+    }
+    
+    return result.join(' ');
   }
 
   // Вспомогательные функции

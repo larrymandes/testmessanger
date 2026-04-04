@@ -18,13 +18,21 @@ class QRScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final qrData = 'chatinvite:$myEmail:$myPublicKey:${DateTime.now().millisecondsSinceEpoch}';
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Мой QR-код'),
       ),
-      body: Center(
+      body: FutureBuilder<String>(
+        future: CryptoService.getEmojiFingerprint(myPublicKey),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          
+          final fingerprint = snapshot.data!;
+          final qrData = 'chatinvite:$myEmail:$myPublicKey:$fingerprint';
+          
+          return Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -52,16 +60,14 @@ class QRScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               FutureBuilder<String>(
-                future: CryptoService.getFingerprint(myPublicKey),
+                future: CryptoService.getEmojiFingerprint(myPublicKey),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) return const SizedBox();
                   return Text(
-                    'Fingerprint:\n${snapshot.data}',
+                    '${snapshot.data}',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontFamily: 'monospace',
-                      color: Colors.grey[400],
+                    style: const TextStyle(
+                      fontSize: 32,
                     ),
                   );
                 },
@@ -80,6 +86,8 @@ class QRScreen extends StatelessWidget {
             ],
           ),
         ),
+          );
+        },
       ),
     );
   }
@@ -162,14 +170,30 @@ class _ScanQRScreenState extends State<ScanQRScreen> {
     try {
       // 1. Парсим QR данные
       final parts = qrData.split(':');
-      if (parts.length < 3 || parts[0] != 'chatinvite') {
+      if (parts.length < 4 || parts[0] != 'chatinvite') {
         throw Exception('Неверный формат QR-кода');
       }
 
       final contactEmail = parts[1];
       final publicKey = parts[2];
+      final expectedFingerprint = parts[3];
+      
+      LoggerService.log('QR: Scanned contact: $contactEmail');
+      LoggerService.log('QR: Expected fingerprint: $expectedFingerprint');
+      
+      // 2. Вычисляем fingerprint из публичного ключа
+      final actualFingerprint = await CryptoService.getEmojiFingerprint(publicKey);
+      LoggerService.log('QR: Actual fingerprint: $actualFingerprint');
+      
+      // 3. ПРОВЕРКА: Fingerprint должен совпадать!
+      if (actualFingerprint != expectedFingerprint) {
+        LoggerService.log('QR: ❌ MITM ATTACK DETECTED! Fingerprints do not match!');
+        throw Exception('⚠️ ОПАСНОСТЬ! Обнаружена попытка подмены ключа!\n\nFingerprint не совпадает. Возможна MITM атака.');
+      }
+      
+      LoggerService.log('QR: ✅ Fingerprint verified!');
 
-      // 2. Вызываем сервис (вся логика там)
+      // 4. Вызываем сервис (вся логика там)
       await widget.chatService.addContactWithInvite(
         contactEmail: contactEmail,
         contactPublicKey: publicKey,

@@ -491,10 +491,12 @@ class ChatService {
     }
     
     // 4. Создаём invite сообщение
+    final fingerprint = await CryptoService.getEmojiFingerprint(_accountData.publicKeyHex);
     final inviteMessage = jsonEncode({
       'type': 'invite',
       'email': email,
       'pubkey': _accountData.publicKeyHex,
+      'fingerprint': fingerprint,  // ← Добавляем fingerprint!
     });
     
     // 5. Шифруем

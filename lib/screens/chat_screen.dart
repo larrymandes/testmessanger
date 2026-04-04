@@ -279,14 +279,13 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             Text(widget.contactEmail),
             FutureBuilder<String>(
-              future: CryptoService.getFingerprint(widget.contactPublicKey),
+              future: CryptoService.getEmojiFingerprint(widget.contactPublicKey),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return const SizedBox();
                 return Text(
                   snapshot.data!,
                   style: const TextStyle(
-                    fontSize: 10,
-                    fontFamily: 'monospace',
+                    fontSize: 20,
                   ),
                 );
               },
