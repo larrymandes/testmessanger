@@ -235,31 +235,99 @@ class MessageService {
   }
   
   Future<void> _handleReadReceipt(Map<String, dynamic> receipt, String from) async {
-    final messageUIDs = receipt['message_uids'] as List<dynamic>?;
-    final singleUID = receipt['message_uid'];
+    // RFC 3798 MDN формат: Original-Message-ID
+    final originalMessageId = receipt['original_message_id'] as String?;
     
-    final uids = messageUIDs ?? (singleUID != null ? [singleUID] : []);
+    if (originalMessageId == null || originalMessageId.isEmpty) {
+      LoggerService.log('📖 ⚠️ Read receipt without original_message_id, skipping');
+      return;
+    }
     
-    if (uids.isEmpty) return;
+    LoggerService.log('📖 Read receipt for message_id=$originalMessageId from=$from');
     
-    LoggerService.log('📖 Read receipt: ${uids.length} messages from=$from');
+    // Обновляем статус по message_id
+    final success = await StorageService.updateMessageStatusByMessageId(
+      accountEmail, 
+      originalMessageId, 
+      'read'
+    );
     
-    int updated = 0;
-    final updatedUIDs = <String>[];
-    for (final uid in uids) {
-      final success = await StorageService.updateMessageStatus(accountEmail, uid.toString(), 'read');
-      if (success) {
-        updated++;
-        updatedUIDs.add(uid.toString());
+    if (success) {
+      LoggerService.log('📖 ✅ Message $originalMessageId marked as READ');
+      // Уведомляем UI об обновлении статуса
+      _notifyStatusUpdate([originalMessageId], 'read');
+    } else {
+      LoggerService.log('📖 ⚠️ Message $originalMessageId not found in DB');
+    }
+  }
+  
+  /// Отправка read receipt для контакта (вызывается из UI)
+  Future<void> sendReadReceipts({
+    required String contactEmail,
+    required Function(String toEmail, String payload) sendMessageCallback,
+  }) async {
+    LoggerService.log('📖 MessageService: Checking for unread messages from $contactEmail');
+    
+    // Загружаем сообщения от контакта
+    final messages = await StorageService.getMessages(accountEmail, contactEmail);
+    
+    // Фильтруем: не отправленные нами, не прочитанные, с message_id
+    final unread = messages.where((m) {
+      final sent = m['sent'] as bool;
+      final readSent = m['readSent'] as bool;
+      final messageId = m['message_id'] as String?;
+      return !sent && !readSent && messageId != null && messageId.isNotEmpty;
+    }).toList();
+    
+    if (unread.isEmpty) {
+      LoggerService.log('📖 No unread messages to send receipts for');
+      return;
+    }
+    
+    LoggerService.log('📖 Found ${unread.length} unread messages, sending read receipts...');
+    
+    // Отправляем read receipt для каждого сообщения
+    int sent = 0;
+    for (final msg in unread) {
+      final messageId = msg['message_id'] as String;
+      
+      try {
+        // RFC 3798 MDN формат (упрощённый)
+        final receipt = jsonEncode({
+          'type': 'read_receipt',
+          'original_message_id': messageId,
+          'disposition': 'displayed', // RFC 3798: displayed, processed, deleted, etc.
+        });
+        
+        // Шифруем и отправляем через callback
+        final contact = await StorageService.getContact(accountEmail, contactEmail);
+        if (contact == null) {
+          LoggerService.log('📖 ⚠️ Contact $contactEmail not found, skipping');
+          continue;
+        }
+        
+        final contactPubKeyHex = contact['publicKey'] as String;
+        final encrypted = await CryptoService.encryptMessage(
+          plaintext: receipt,
+          recipientPubKeyHex: contactPubKeyHex,
+          senderEmail: accountEmail,
+          recipientEmail: contactEmail,
+        );
+        
+        // Отправляем через callback (ChatService.sendMessage)
+        await sendMessageCallback(contactEmail, jsonEncode(encrypted));
+        
+        // Помечаем что read receipt отправлен
+        await StorageService.markMessageReadSentByMessageId(accountEmail, messageId);
+        sent++;
+        
+        LoggerService.log('📖 ✅ Read receipt sent for message_id=$messageId');
+      } catch (e) {
+        LoggerService.log('📖 ❌ Failed to send read receipt for $messageId: $e');
       }
     }
     
-    LoggerService.log('📖 Updated $updated/${uids.length} messages to READ');
-    
-    // Уведомляем UI об обновлении статуса (без полной перезагрузки)
-    if (updatedUIDs.isNotEmpty) {
-      _notifyStatusUpdate(updatedUIDs, 'read');
-    }
+    LoggerService.log('📖 ✅ Sent $sent/${unread.length} read receipts');
   }
   
   /// Уведомление UI об обновлении статуса сообщений

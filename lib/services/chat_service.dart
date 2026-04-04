@@ -230,27 +230,38 @@ class ChatService {
         
         LoggerService.log('ChatService: Sending part ${i + 1}/${parts.length} (${parts[i].length} chars)');
         
-        // Шифруем (добавляем UID в JSON!)
+        // Шифруем (БЕЗ UID - используем Message-ID!)
         final encrypted = await CryptoService.encryptMessage(
           plaintext: jsonEncode({
             'text': parts[i],
-            'uid': uids[i],  // ← UID для read receipts!
           }),
           recipientPubKeyHex: recipientPublicKey,
           senderEmail: email,
           recipientEmail: toEmail,
         );
         
-        // Отправляем
-        await sendMessage(
+        // Отправляем и получаем Message-ID
+        final messageId = await sendMessage(
           toEmail: toEmail,
           encryptedPayload: jsonEncode(encrypted),
+        );
+        
+        // Сохраняем в БД с Message-ID
+        await StorageService.saveMessage(
+          accountEmail: email,
+          contactEmail: toEmail,
+          text: parts[i],
+          sent: true,
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          status: 'sent',
+          uid: uids[i],
+          messageId: messageId,
         );
         
         // Добавляем timestamp для rate limiting
         _addSendTimestamp();
         
-        LoggerService.log('ChatService: ✅ Part ${i + 1}/${parts.length} sent');
+        LoggerService.log('ChatService: ✅ Part ${i + 1}/${parts.length} sent (Message-ID: $messageId)');
         
         // Уведомляем UI об успешной отправке
         onStatusUpdate(uids[i], 'sent');
@@ -303,27 +314,38 @@ class ChatService {
         
         LoggerService.log('ChatService: Sending part ${i + 1}/${parts.length} (${parts[i].length} chars)');
         
-        // Шифруем (добавляем UID в JSON!)
+        // Шифруем (БЕЗ UID - используем Message-ID!)
         final encrypted = await CryptoService.encryptMessage(
           plaintext: jsonEncode({
             'text': parts[i],
-            'uid': uids[i],  // ← UID для read receipts!
           }),
           recipientPubKeyHex: recipientPublicKey,
           senderEmail: email,
           recipientEmail: toEmail,
         );
         
-        // Отправляем
-        await sendMessage(
+        // Отправляем и получаем Message-ID
+        final messageId = await sendMessage(
           toEmail: toEmail,
           encryptedPayload: jsonEncode(encrypted),
+        );
+        
+        // Сохраняем в БД с Message-ID
+        await StorageService.saveMessage(
+          accountEmail: email,
+          contactEmail: toEmail,
+          text: parts[i],
+          sent: true,
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          status: 'sent',
+          uid: uids[i],
+          messageId: messageId,
         );
         
         // Добавляем timestamp для rate limiting
         _addSendTimestamp();
         
-        LoggerService.log('ChatService: ✅ Part ${i + 1}/${parts.length} sent');
+        LoggerService.log('ChatService: ✅ Part ${i + 1}/${parts.length} sent (Message-ID: $messageId)');
         
         // Уведомляем UI об успешной отправке
         onStatusUpdate(uids[i], 'sent');
@@ -506,6 +528,29 @@ class ChatService {
     );
     
     LoggerService.log('ChatService: ✅ Contact $contactEmail saved to DB');
+  }
+  
+  /// Отправка read receipts для контакта (вызывается из UI)
+  Future<void> sendReadReceipts(String contactEmail) async {
+    if (!_initialized) {
+      LoggerService.log('ChatService: Not initialized, skipping read receipts');
+      return;
+    }
+    
+    LoggerService.log('ChatService: sendReadReceipts() for $contactEmail');
+    
+    // Вызываем MessageService с callback для отправки
+    await _messageService.sendReadReceipts(
+      contactEmail: contactEmail,
+      sendMessageCallback: (toEmail, payload) async {
+        // Отправляем БЕЗ BCC (read receipts не нужны себе)
+        await sendMessage(
+          toEmail: toEmail,
+          encryptedPayload: payload,
+          bccToSelf: false,
+        );
+      },
+    );
   }
   
   /// Отключение

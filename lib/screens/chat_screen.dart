@@ -158,61 +158,13 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  /// Отправка read receipts (через сервис!)
   Future<void> _sendReadReceipts() async {
-    // Находим непрочитанные входящие сообщения
-    final messages = await StorageService.getMessages(
-      widget.chatService.email,
-      widget.contactEmail,
-    );
-
-    LoggerService.log('ChatScreen: Checking ${messages.length} messages for read receipts');
-    
-    final unread = messages.where((m) {
-      final sent = m['sent'];
-      final readSent = m['readSent'];
-      final uid = m['uid'];
-      
-      LoggerService.log('ChatScreen: Message uid=$uid sent=$sent readSent=$readSent');
-      
-      return !sent && !readSent && uid != null;
-    }).toList();
-
-    LoggerService.log('ChatScreen: Found ${unread.length} unread messages');
-    
-    if (unread.isEmpty) return;
-    
-    LoggerService.log('ChatScreen: Sending ${unread.length} read receipts');
-
-    // Батчинг: отправляем все UID одним сообщением
-    final uids = unread.map((m) => m['uid']).toList();
-    
     try {
-      final receipt = jsonEncode({
-        'type': 'read_receipt',
-        'message_uids': uids, // Массив вместо одного UID
-      });
-
-      final encrypted = await CryptoService.encryptMessage(
-        plaintext: receipt,
-        recipientPubKeyHex: widget.contactPublicKey,
-        senderEmail: widget.chatService.email,
-        recipientEmail: widget.contactEmail,
-      );
-
-      await widget.chatService.sendMessage(
-        toEmail: widget.contactEmail,
-        encryptedPayload: jsonEncode(encrypted),
-        bccToSelf: false, // Read receipt БЕЗ BCC!
-      );
-      
-      // Помечаем все как отправленные
-      for (final msg in unread) {
-        await StorageService.markMessageReadSent(widget.chatService.email, msg['uid']);
-      }
-      
-      LoggerService.log('ChatScreen: ✅ ${unread.length} read receipts sent');
+      await widget.chatService.sendReadReceipts(widget.contactEmail);
+      LoggerService.log('ChatScreen: ✅ Read receipts sent');
     } catch (e) {
-      LoggerService.log('Send read receipts error: $e');
+      LoggerService.log('ChatScreen: ❌ Read receipts error: $e');
     }
   }
 

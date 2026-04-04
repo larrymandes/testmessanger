@@ -572,7 +572,7 @@ class EmailService {
         LoggerService.log('SMTP: ✅ SUCCESS in ${duration.inMilliseconds}ms');
         LoggerService.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         
-        return messageId;
+        return messageId; // ← Возвращаем Message-ID!
         
       } catch (e) {
         LoggerService.log('SMTP [7/9]: ✗ Message build failed: $e');

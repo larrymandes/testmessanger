@@ -281,6 +281,21 @@ class StorageService {
     return count > 0;
   }
 
+  /// Обновление статуса по message_id (для read receipts)
+  static Future<bool> updateMessageStatusByMessageId(
+    String accountEmail,
+    String messageId,
+    String status,
+  ) async {
+    final count = await _database!.update(
+      'messages',
+      {'status': status},
+      where: 'account_email = ? AND message_id = ?',
+      whereArgs: [accountEmail, messageId],
+    );
+    return count > 0;
+  }
+
   static Future<void> deleteMessage(
     String accountEmail,
     String uid,
@@ -301,6 +316,19 @@ class StorageService {
       {'read_sent': 1},
       where: 'account_email = ? AND uid = ?',
       whereArgs: [accountEmail, uid],
+    );
+  }
+
+  /// Пометить что read receipt отправлен (по message_id)
+  static Future<void> markMessageReadSentByMessageId(
+    String accountEmail,
+    String messageId,
+  ) async {
+    await _database!.update(
+      'messages',
+      {'read_sent': 1},
+      where: 'account_email = ? AND message_id = ?',
+      whereArgs: [accountEmail, messageId],
     );
   }
 
