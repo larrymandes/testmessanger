@@ -115,9 +115,47 @@ class MessageService {
     }
     LoggerService.log('✅ Marked UID=$uid as processed (Message-ID: ${messageId.isNotEmpty ? messageId : "none"})');
     
-    // Пропускаем свои BCC копии (но помечаем как обработанные - уже сделано выше)
+    // ВАЖНО: Обрабатываем BCC копии для обновления серверного Message-ID!
     if (from == accountEmail) {
-      LoggerService.log('📤 BCC copy from myself, skipping');
+      LoggerService.log('📤 BCC copy from myself - extracting server Message-ID');
+      
+      // Получаем body для извлечения локального Message-ID
+      String body = '';
+      final textPlainPart = mimeMessage.getPartWithMediaSubtype(MediaSubtype.textPlain);
+      if (textPlainPart != null) {
+        body = textPlainPart.decodeContentText() ?? '';
+      } else {
+        body = mimeMessage.decodeTextPlainPart() ?? '';
+      }
+      
+      body = body.replaceAll(RegExp(r'\s+'), '');
+      
+      try {
+        final encrypted = jsonDecode(body) as Map<String, dynamic>;
+        final plaintext = await CryptoService.decryptMessage(
+          encrypted: encrypted.map((k, v) => MapEntry(k, v.toString())),
+          myKeyPair: keyPair,
+        );
+        
+        final parsed = jsonDecode(plaintext);
+        
+        // Извлекаем локальный Message-ID из метаданных
+        final localMessageId = parsed['local_message_id'] as String?;
+        
+        if (localMessageId != null && messageId.isNotEmpty && localMessageId != messageId) {
+          LoggerService.log('📤 Updating server Message-ID: $localMessageId -> $messageId');
+          
+          // Обновляем в БД: заменяем локальный Message-ID на серверный
+          await _updateServerMessageId(localMessageId, messageId);
+          
+          LoggerService.log('📤 ✅ Server Message-ID updated');
+        } else {
+          LoggerService.log('📤 No local_message_id in BCC copy or same as server');
+        }
+      } catch (e) {
+        LoggerService.log('📤 ⚠️ Failed to extract local Message-ID from BCC: $e');
+      }
+      
       return;
     }
     
@@ -383,6 +421,15 @@ class MessageService {
     );
     
     LoggerService.log('✅ Text message saved to DB with Message-ID: $messageId');
+  }
+  
+  /// Обновление серверного Message-ID (из BCC копии)
+  Future<void> _updateServerMessageId(String localMessageId, String serverMessageId) async {
+    // Обновляем message_id в БД
+    await StorageService.updateServerMessageId(accountEmail, localMessageId, serverMessageId);
+    
+    // Добавляем серверный Message-ID в processed (для дедупликации)
+    await StorageService.addProcessedMessageId(accountEmail, serverMessageId);
   }
   
   /// Уведомление UI

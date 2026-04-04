@@ -304,6 +304,18 @@ class StorageService {
     );
   }
 
+  /// Обновление серверного Message-ID (из BCC копии)
+  static Future<void> updateServerMessageId(
+    String accountEmail,
+    String localMessageId,
+    String serverMessageId,
+  ) async {
+    await _database!.execute(
+      'UPDATE messages SET message_id = ? WHERE account_email = ? AND message_id = ?',
+      [serverMessageId, accountEmail, localMessageId],
+    );
+  }
+
   /// Пометить что read receipt отправлен (по message_id)
   static Future<void> markMessageReadSent(
     String accountEmail,

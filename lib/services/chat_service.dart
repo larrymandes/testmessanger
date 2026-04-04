@@ -230,10 +230,11 @@ class ChatService {
         
         LoggerService.log('ChatService: Sending part ${i + 1}/${parts.length} (${parts[i].length} chars)');
         
-        // Шифруем
+        // Шифруем (добавляем local_message_id для BCC обработки)
         final encrypted = await CryptoService.encryptMessage(
           plaintext: jsonEncode({
             'text': parts[i],
+            'local_message_id': messageIds[i],  // ← Для BCC обработки!
           }),
           recipientPubKeyHex: recipientPublicKey,
           senderEmail: email,
