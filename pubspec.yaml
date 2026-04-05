@@ -36,7 +36,7 @@ dependencies:
   # Yandex Music integration
   http: ^1.2.2
   xml: ^6.5.0
-  just_audio: ^0.9.39
+  audioplayers: ^6.1.0
 
 dev_dependencies:
   flutter_test:

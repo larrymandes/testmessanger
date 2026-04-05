@@ -240,12 +240,16 @@ class ChatService {
         
         LoggerService.log('ChatService: Sending part ${i + 1}/${parts.length} (${parts[i].length} chars)');
         
-        // ✅ Шифруем (добавляем sender_nickname в КАЖДОЕ сообщение!)
+        // ✅ Загружаем свой Yandex Track ID
+        final myYandexTrackId = myAccount?['yandexTrackId'] ?? '';
+        
+        // ✅ Шифруем (добавляем sender_nickname и sender_yandex_track_id в КАЖДОЕ сообщение!)
         final encrypted = await CryptoService.encryptMessage(
           plaintext: jsonEncode({
             'text': parts[i],
             'local_message_id': messageIds[i],  // ← Для BCC обработки!
             'sender_nickname': myNickname.isNotEmpty ? myNickname : null, // ✅ Никнейм!
+            'sender_yandex_track_id': myYandexTrackId.isNotEmpty ? myYandexTrackId : null, // ✅ Yandex Track ID!
             'sender_email': email, // ✅ Email на всякий случай
           }),
           recipientPubKeyHex: recipientPublicKey,
@@ -331,11 +335,15 @@ class ChatService {
         
         LoggerService.log('ChatService: Sending part ${i + 1}/${parts.length} (${parts[i].length} chars)');
         
-        // ✅ Шифруем (добавляем sender_nickname в КАЖДОЕ сообщение!)
+        // ✅ Загружаем свой Yandex Track ID
+        final myYandexTrackId = myAccount?['yandexTrackId'] ?? '';
+        
+        // ✅ Шифруем (добавляем sender_nickname и sender_yandex_track_id в КАЖДОЕ сообщение!)
         final encrypted = await CryptoService.encryptMessage(
           plaintext: jsonEncode({
             'text': parts[i],
             'sender_nickname': myNickname.isNotEmpty ? myNickname : null, // ✅ Никнейм!
+            'sender_yandex_track_id': myYandexTrackId.isNotEmpty ? myYandexTrackId : null, // ✅ Yandex Track ID!
             'sender_email': email, // ✅ Email на всякий случай
           }),
           recipientPubKeyHex: recipientPublicKey,

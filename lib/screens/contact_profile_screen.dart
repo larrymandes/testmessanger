@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
 import '../services/logger_service.dart';
+import '../services/yandex_music_service.dart';
 
 class ContactProfileScreen extends StatefulWidget {
   final String contactEmail;
@@ -26,6 +27,9 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
   bool _isLoading = true;
   bool _isMutual = false;
   String _contactNickname = ''; // ✅ Никнейм контакта
+  String _contactYandexTrackId = ''; // ✅ Yandex Track ID контакта
+  Map<String, String?>? _trackInfo; // ✅ Информация о треке
+  final YandexMusicService _yandexMusic = YandexMusicService(); // ✅ Сервис для Яндекс.Музыки
 
   @override
   void initState() {
@@ -67,6 +71,7 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
           _emojiFingerprint = fingerprint;
           _isMutual = contact?['mutual'] == true;
           _contactNickname = contact?['nickname'] ?? ''; // ✅ Загружаем никнейм
+          _contactYandexTrackId = contact?['yandexTrackId'] ?? ''; // ✅ Загружаем Yandex Track ID
           _stats = {
             'total': messages.length,
             'sent': sentCount,
@@ -76,11 +81,61 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
           };
           _isLoading = false;
         });
+        
+        // ✅ Загружаем информацию о треке (если есть)
+        if (_contactYandexTrackId.isNotEmpty) {
+          _loadTrackInfo();
+        }
       }
     } catch (e) {
       LoggerService.log('ContactProfileScreen: Error loading data: $e');
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+  
+  Future<void> _loadTrackInfo() async {
+    try {
+      LoggerService.log('ContactProfileScreen: Loading track info for $_contactYandexTrackId');
+      final info = await _yandexMusic.getTrackInfo(_contactYandexTrackId);
+      
+      if (mounted && info != null) {
+        setState(() {
+          _trackInfo = info;
+        });
+        LoggerService.log('ContactProfileScreen: ✅ Track info loaded: ${info['title']} - ${info['artist']}');
+      }
+    } catch (e) {
+      LoggerService.log('ContactProfileScreen: Error loading track info: $e');
+    }
+  }
+  
+  Future<void> _playTrack() async {
+    try {
+      LoggerService.log('ContactProfileScreen: Playing track $_contactYandexTrackId');
+      await _yandexMusic.playTrack(_contactYandexTrackId);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🎵 Проигрывание...'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      LoggerService.log('ContactProfileScreen: Error playing track: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✗ Ошибка: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       }
     }
   }
@@ -131,6 +186,12 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
                     value: _contactNickname,
                     onCopy: () => _copyToClipboard(_contactNickname, 'Никнейм скопирован'),
                   ),
+                  const SizedBox(height: 16),
+                ],
+                
+                // ✅ Трек из Яндекс.Музыки (если есть)
+                if (_contactYandexTrackId.isNotEmpty) ...[
+                  _buildTrackCard(),
                   const SizedBox(height: 16),
                 ],
                 
@@ -292,6 +353,128 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
           ),
     );
   }
+  
+  Widget _buildTrackCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.purple,
+          width: 2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.music_note, color: Colors.purple, size: 24),
+              const SizedBox(width: 8),
+              const Text(
+                'Любимый трек',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.purple,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          
+          if (_trackInfo == null)
+            // Загрузка...
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else
+            // Информация о треке
+            Row(
+              children: [
+                // Обложка
+                if (_trackInfo!['coverUrl'] != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      _trackInfo!['coverUrl']!,
+                      width: 80,
+                      height: 80,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          width: 80,
+                          height: 80,
+                          color: Colors.grey[800],
+                          child: const Icon(Icons.music_note, size: 40, color: Colors.white),
+                        );
+                      },
+                    ),
+                  )
+                else
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[800],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.music_note, size: 40, color: Colors.white),
+                  ),
+                
+                const SizedBox(width: 12),
+                
+                // Название и артист
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _trackInfo!['title'] ?? 'Неизвестный трек',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _trackInfo!['artist'] ?? 'Неизвестный артист',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[400],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      
+                      // Кнопка Play
+                      ElevatedButton.icon(
+                        onPressed: _playTrack,
+                        icon: const Icon(Icons.play_arrow, size: 20),
+                        label: const Text('Послушать (30 сек)'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildInfoCard({
     required IconData icon,
@@ -426,5 +609,11 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
         behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+  
+  @override
+  void dispose() {
+    _yandexMusic.dispose(); // ✅ Освобождаем ресурсы аудио плеера
+    super.dispose();
   }
 }

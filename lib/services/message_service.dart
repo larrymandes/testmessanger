@@ -587,6 +587,7 @@ class MessageService {
     // ✅ СИНХРОНИЗАЦИЯ НИКНЕЙМА: Извлекаем из сообщения и обновляем в БД
     final senderNickname = message['sender_nickname'] as String?;
     final senderEmail = message['sender_email'] as String?;
+    final senderYandexTrackId = message['sender_yandex_track_id'] as String?;
     
     if (senderNickname != null && senderNickname.isNotEmpty) {
       LoggerService.log('💬 ✅ Sender nickname in message: "$senderNickname"');
@@ -605,6 +606,26 @@ class MessageService {
       }
     } else {
       LoggerService.log('💬 No sender_nickname in message');
+    }
+    
+    // ✅ СИНХРОНИЗАЦИЯ YANDEX TRACK ID: Извлекаем из сообщения и обновляем в БД
+    if (senderYandexTrackId != null && senderYandexTrackId.isNotEmpty) {
+      LoggerService.log('🎵 ✅ Sender Yandex Track ID in message: "$senderYandexTrackId"');
+      
+      // Обновляем Yandex Track ID контакта в БД
+      try {
+        await StorageService.updateContactYandexTrackId(
+          accountEmail: accountEmail,
+          contactEmail: from,
+          trackId: senderYandexTrackId,
+        );
+        LoggerService.log('🎵 ✅ Contact Yandex Track ID updated to: "$senderYandexTrackId"');
+      } catch (e) {
+        LoggerService.log('🎵 ⚠️ Failed to update contact Yandex Track ID: $e');
+        // Не критично, продолжаем
+      }
+    } else {
+      LoggerService.log('🎵 No sender_yandex_track_id in message');
     }
     
     await StorageService.saveMessage(

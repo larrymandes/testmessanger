@@ -168,6 +168,11 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
             onPressed: _editNickname,
           ),
           IconButton(
+            icon: const Icon(Icons.music_note),
+            tooltip: 'Изменить трек',
+            onPressed: _editYandexTrack,
+          ),
+          IconButton(
             icon: const Icon(Icons.bug_report),
             onPressed: () {
               Navigator.push(
@@ -507,6 +512,83 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
                       content: Text(nickname.isEmpty 
                         ? '✓ Никнейм удалён' 
                         : '✓ Никнейм изменён на "$nickname"'),
+                      backgroundColor: Colors.green,
+                      duration: const Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('✗ Ошибка: $e'),
+                      backgroundColor: Colors.red,
+                      duration: const Duration(seconds: 3),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void _editYandexTrack() async {
+    // Загружаем текущий Yandex Track ID
+    final account = await StorageService.getAccount(widget.email);
+    final currentTrackId = account?['yandexTrackId'] ?? '';
+    
+    final controller = TextEditingController(text: currentTrackId);
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Изменить трек'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Введите ID трека из Яндекс.Музыки',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: 'Track ID',
+                hintText: 'Например: 147457409',
+              ),
+              keyboardType: TextInputType.number,
+              maxLength: 20,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final trackId = controller.text.trim();
+              
+              try {
+                // Сохраняем Track ID
+                await StorageService.updateAccountYandexTrackId(widget.email, trackId);
+                
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(trackId.isEmpty 
+                        ? '✓ Трек удалён' 
+                        : '✓ Трек изменён на "$trackId"'),
                       backgroundColor: Colors.green,
                       duration: const Duration(seconds: 2),
                       behavior: SnackBarBehavior.floating,

@@ -28,7 +28,7 @@ class StorageService {
 
     return await openDatabase(
       path,
-      version: 6, // ← Версия 6: добавляем nickname для аккаунтов и контактов
+      version: 7, // ← Версия 7: добавляем yandex_track_id для аккаунтов и контактов
       onCreate: (db, version) async {
         // Таблица аккаунтов
         await db.execute('''
@@ -36,7 +36,8 @@ class StorageService {
             email TEXT PRIMARY KEY,
             private_key TEXT NOT NULL,
             public_key TEXT NOT NULL,
-            nickname TEXT
+            nickname TEXT,
+            yandex_track_id TEXT
           )
         ''');
 
@@ -49,6 +50,7 @@ class StorageService {
             mutual INTEGER DEFAULT 0,
             invite_sent INTEGER DEFAULT 0,
             nickname TEXT,
+            yandex_track_id TEXT,
             PRIMARY KEY (account_email, contact_email)
           )
         ''');
@@ -174,6 +176,23 @@ class StorageService {
           
           LoggerService.log('DB Migration: ✅ Nicknames added!');
         }
+        
+        if (oldVersion < 7) {
+          // Миграция с версии 6 на 7: добавляем yandex_track_id для аккаунтов и контактов
+          LoggerService.log('DB Migration: v6 -> v7 (yandex_track_id)');
+          
+          // Добавляем колонку yandex_track_id в accounts
+          await db.execute('''
+            ALTER TABLE accounts ADD COLUMN yandex_track_id TEXT
+          ''');
+          
+          // Добавляем колонку yandex_track_id в contacts
+          await db.execute('''
+            ALTER TABLE contacts ADD COLUMN yandex_track_id TEXT
+          ''');
+          
+          LoggerService.log('DB Migration: ✅ Yandex Track ID added!');
+        }
       },
     );
   }
@@ -211,6 +230,7 @@ class StorageService {
       'privateKey': results.first['private_key'] as String,
       'publicKey': results.first['public_key'] as String,
       'nickname': (results.first['nickname'] as String?) ?? '',
+      'yandexTrackId': (results.first['yandex_track_id'] as String?) ?? '',
     };
   }
   
@@ -223,6 +243,17 @@ class StorageService {
       whereArgs: [email],
     );
     LoggerService.log('StorageService: Account nickname updated: $email -> $nickname');
+  }
+  
+  /// Обновить Yandex Track ID аккаунта
+  static Future<void> updateAccountYandexTrackId(String email, String trackId) async {
+    await _database!.update(
+      'accounts',
+      {'yandex_track_id': trackId},
+      where: 'email = ?',
+      whereArgs: [email],
+    );
+    LoggerService.log('StorageService: Account Yandex Track ID updated: $email -> $trackId');
   }
 
   // === Контакты ===
@@ -262,6 +293,7 @@ class StorageService {
       'publicKey': results.first['public_key'],
       'mutual': results.first['mutual'] == 1,
       'nickname': (results.first['nickname'] as String?) ?? '',
+      'yandexTrackId': (results.first['yandex_track_id'] as String?) ?? '',
     };
   }
   
@@ -278,6 +310,21 @@ class StorageService {
       whereArgs: [accountEmail, contactEmail],
     );
     LoggerService.log('StorageService: Contact nickname updated: $contactEmail -> $nickname');
+  }
+  
+  /// Обновить Yandex Track ID контакта
+  static Future<void> updateContactYandexTrackId({
+    required String accountEmail,
+    required String contactEmail,
+    required String trackId,
+  }) async {
+    await _database!.update(
+      'contacts',
+      {'yandex_track_id': trackId},
+      where: 'account_email = ? AND contact_email = ?',
+      whereArgs: [accountEmail, contactEmail],
+    );
+    LoggerService.log('StorageService: Contact Yandex Track ID updated: $contactEmail -> $trackId');
   }
   
   /// Установить контакт как взаимный
@@ -342,6 +389,7 @@ class StorageService {
               'publicKey': r['public_key'],
               'mutual': r['mutual'] == 1,
               'nickname': (r['nickname'] as String?) ?? '',
+              'yandexTrackId': (r['yandex_track_id'] as String?) ?? '',
             })
         .toList();
   }
