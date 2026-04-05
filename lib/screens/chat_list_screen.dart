@@ -153,10 +153,10 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
               style: TextStyle(
                 fontSize: 12,
                 color: _connectionStatus == 'Подключено' 
-                  ? Colors.green[300] 
+                  ? Colors.green 
                   : _connectionStatus == 'Ошибка'
-                    ? Colors.red[300]
-                    : Colors.grey[400],
+                    ? Theme.of(context).colorScheme.error
+                    : Theme.of(context).textTheme.bodySmall!.color,
               ),
             ),
           ],
@@ -258,16 +258,25 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.chat_bubble_outline, size: 80, color: Colors.grey[600]),
+          Icon(
+            Icons.chat_bubble_outline, 
+            size: 80, 
+            color: Theme.of(context).textTheme.bodySmall!.color,
+          ),
           const SizedBox(height: 16),
           Text(
             'Нет чатов',
-            style: TextStyle(fontSize: 20, color: Colors.grey[600]),
+            style: TextStyle(
+              fontSize: 20, 
+              color: Theme.of(context).textTheme.bodySmall!.color,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             'Добавьте контакт через QR-код',
-            style: TextStyle(color: Colors.grey[500]),
+            style: TextStyle(
+              color: Theme.of(context).textTheme.bodySmall!.color,
+            ),
           ),
         ],
       ),
@@ -300,7 +309,7 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
             ? Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2b5278),
+                  color: Theme.of(context).primaryColor,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 constraints: const BoxConstraints(
@@ -339,7 +348,7 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
   void _showContactOptions(String contactEmail) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1a2332),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),

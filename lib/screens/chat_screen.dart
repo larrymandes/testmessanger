@@ -351,7 +351,6 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(displayName),
-        backgroundColor: const Color(0xFF1a2332),
         actions: [
           // Кнопка открытия профиля
           IconButton(
@@ -409,9 +408,9 @@ class _ChatScreenState extends State<ChatScreen> {
               },
               theme: ChatTheme.dark().copyWith(
                 colors: ChatTheme.dark().colors.copyWith(
-                  primary: const Color(0xFF2b5278),
-                  surface: const Color(0xFF0e1621),
-                  onSurface: Colors.white,
+                  primary: Theme.of(context).primaryColor,
+                  surface: Theme.of(context).scaffoldBackgroundColor,
+                  onSurface: Theme.of(context).textTheme.bodyLarge!.color!,
                 ),
               ),
             ),
@@ -436,7 +435,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // Показываем меню действий
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1a2332),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),

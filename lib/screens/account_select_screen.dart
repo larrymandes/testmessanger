@@ -7,20 +7,13 @@ class AccountSelectScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF0e1621), Color(0xFF17212b)],
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
                 const Icon(
                   Icons.lock_outline,
                   size: 80,
@@ -59,17 +52,16 @@ class AccountSelectScreen extends StatelessWidget {
                   'ak2DJdvV02aepi1OYLT5',
                   Icons.person_outline,
                 ),
-                const SizedBox(height: 32),
-                TextButton.icon(
-                  onPressed: () => _showAddAccountDialog(context),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Добавить аккаунт'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.white70,
-                  ),
+              const SizedBox(height: 32),
+              TextButton.icon(
+                onPressed: () => _showAddAccountDialog(context),
+                icon: const Icon(Icons.add),
+                label: const Text('Добавить аккаунт'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white70,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -119,7 +111,7 @@ class AccountSelectScreen extends StatelessWidget {
                       email,
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.grey[400],
+                        color: Theme.of(context).textTheme.bodySmall!.color,
                       ),
                     ),
                   ],

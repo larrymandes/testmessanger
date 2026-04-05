@@ -57,7 +57,7 @@ class _LogsScreenState extends State<LogsScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     border: Border(
-                      bottom: BorderSide(color: Colors.grey[800]!),
+                      bottom: BorderSide(color: Theme.of(context).dividerColor),
                     ),
                   ),
                   child: Text(
@@ -65,7 +65,9 @@ class _LogsScreenState extends State<LogsScreen> {
                     style: TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 11,
-                      color: isError ? Colors.red[300] : Colors.grey[300],
+                      color: isError 
+                        ? Theme.of(context).colorScheme.error 
+                        : Theme.of(context).textTheme.bodySmall!.color,
                     ),
                   ),
                 );

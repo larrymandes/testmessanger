@@ -25,6 +25,7 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
   Map<String, dynamic>? _stats;
   bool _isLoading = true;
   bool _isMutual = false;
+  String _contactNickname = ''; // ✅ Никнейм контакта
 
   @override
   void initState() {
@@ -37,7 +38,7 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
       // Загружаем фингерпринт
       final fingerprint = await CryptoService.getEmojiFingerprint(widget.contactPublicKey);
       
-      // Загружаем контакт для проверки mutual
+      // Загружаем контакт для проверки mutual и никнейма
       final contact = await StorageService.getContact(
         widget.accountEmail,
         widget.contactEmail,
@@ -65,6 +66,7 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
         setState(() {
           _emojiFingerprint = fingerprint;
           _isMutual = contact?['mutual'] == true;
+          _contactNickname = contact?['nickname'] ?? ''; // ✅ Загружаем никнейм
           _stats = {
             'total': messages.length,
             'sent': sentCount,
@@ -86,10 +88,8 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0e1621),
       appBar: AppBar(
         title: const Text('Профиль контакта'),
-        backgroundColor: const Color(0xFF1a2332),
       ),
       body: _isLoading
         ? const Center(child: CircularProgressIndicator())
@@ -104,12 +104,13 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
                     width: 100,
                     height: 100,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2b5278),
+                      color: Theme.of(context).primaryColor,
                       shape: BoxShape.circle,
                     ),
                     child: Center(
                       child: Text(
-                        widget.contactEmail[0].toUpperCase(),
+                        // ✅ Первая буква никнейма или email
+                        (_contactNickname.isNotEmpty ? _contactNickname : widget.contactEmail)[0].toUpperCase(),
                         style: const TextStyle(
                           fontSize: 48,
                           fontWeight: FontWeight.bold,
@@ -121,6 +122,17 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
                 ),
                 
                 const SizedBox(height: 24),
+                
+                // ✅ Никнейм (если есть)
+                if (_contactNickname.isNotEmpty) ...[
+                  _buildInfoCard(
+                    icon: Icons.person,
+                    title: 'Никнейм',
+                    value: _contactNickname,
+                    onCopy: () => _copyToClipboard(_contactNickname, 'Никнейм скопирован'),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 
                 // Email
                 _buildInfoCard(
@@ -151,7 +163,7 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: _isMutual ? const Color(0xFF1a4d2e) : const Color(0xFF4d2e1a),
+                    color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: _isMutual ? Colors.green : Colors.orange,
@@ -183,9 +195,9 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
                               _isMutual 
                                 ? 'Вы можете обмениваться сообщениями'
                                 : 'Ожидайте пока собеседник добавит вас в контакты',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.white70,
+                                color: Theme.of(context).textTheme.bodySmall!.color,
                               ),
                             ),
                           ],
@@ -203,10 +215,10 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
                   title: 'Публичный ключ',
                   value: _formatPublicKey(widget.contactPublicKey),
                   onCopy: () => _copyToClipboard(widget.contactPublicKey, 'Публичный ключ скопирован'),
-                  valueStyle: const TextStyle(
+                  valueStyle: TextStyle(
                     fontSize: 12,
                     fontFamily: 'monospace',
-                    color: Colors.white70,
+                    color: Theme.of(context).textTheme.bodySmall!.color,
                   ),
                 ),
                 
@@ -214,12 +226,12 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
                 
                 // Статистика
                 if (_stats != null) ...[
-                  const Text(
+                  Text(
                     'Статистика',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: Theme.of(context).textTheme.titleLarge!.color,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -291,7 +303,7 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1a2332),
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -299,20 +311,20 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, color: Colors.white70, size: 20),
+              Icon(icon, color: Theme.of(context).textTheme.bodySmall!.color, size: 20),
               const SizedBox(width: 8),
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
-                  color: Colors.white70,
+                  color: Theme.of(context).textTheme.bodySmall!.color,
                 ),
               ),
               const Spacer(),
               if (onCopy != null)
                 IconButton(
                   icon: const Icon(Icons.copy, size: 18),
-                  color: Colors.white70,
+                  color: Theme.of(context).textTheme.bodySmall!.color,
                   onPressed: onCopy,
                   tooltip: 'Копировать',
                 ),
@@ -321,9 +333,9 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
           const SizedBox(height: 8),
           Text(
             value,
-            style: valueStyle ?? const TextStyle(
+            style: valueStyle ?? TextStyle(
               fontSize: 16,
-              color: Colors.white,
+              color: Theme.of(context).textTheme.bodyLarge!.color,
             ),
           ),
         ],
@@ -340,7 +352,7 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1a2332),
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -358,9 +370,9 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
-              color: Colors.white70,
+              color: Theme.of(context).textTheme.bodySmall!.color,
             ),
           ),
         ],
