@@ -67,12 +67,6 @@ jobs:
           channel: 'stable'
       - run: flutter create . --platforms=android
       - run: flutter pub get
-      
-      # Генерируем иконки для Android (ПОСЛЕ flutter create!)
-      - name: Generate Android icons
-        run: dart run flutter_launcher_icons
-        continue-on-error: true
-      
       - run: flutter build apk --release
       
       # Переименовываем APK с версией
@@ -105,12 +99,6 @@ jobs:
           channel: 'stable'
       - run: flutter create . --platforms=ios
       - run: flutter pub get
-      
-      # Генерируем иконки для iOS (ПОСЛЕ flutter create!)
-      - name: Generate iOS icons
-        run: dart run flutter_launcher_icons
-        continue-on-error: true
-      
       - name: Add iOS permissions
         run: |
           /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Для сканирования QR-кодов контактов'" ios/Runner/Info.plist || true
