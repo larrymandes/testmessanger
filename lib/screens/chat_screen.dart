@@ -96,12 +96,13 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
   
-  /// Обновление статуса сообщений без перезагрузки
+  /// Обновление статуса сообщений без перезагрузки и БЕЗ анимации
   void _updateMessageStatuses(List<String> messageIds, String status) {
     LoggerService.log('ChatScreen: Updating ${messageIds.length} messages to status "$status"');
     
-    final messages = _chatController.messages;
+    final messages = _chatController.messages.toList(); // Копируем список
     final now = DateTime.now();
+    bool hasChanges = false;
     
     for (final messageId in messageIds) {
       final messageIndex = messages.indexWhere((m) => m.id == messageId);
@@ -127,9 +128,15 @@ class _ChatScreenState extends State<ChatScreen> {
             : null,
       );
       
-      // Обновляем сообщение в контроллере (без перезагрузки всего списка)
-      _chatController.updateMessage(oldMessage, updatedMessage);
+      // Заменяем сообщение в списке
+      messages[messageIndex] = updatedMessage;
+      hasChanges = true;
       LoggerService.log('ChatScreen: ✅ Message $messageId updated to "$status"');
+    }
+    
+    // ✅ Обновляем весь список БЕЗ анимации через setMessages
+    if (hasChanges) {
+      _chatController.setMessages(messages);
     }
   }
 
