@@ -417,10 +417,10 @@ class EmailService {
         continue;
       }
       
-      // ВАЖНО: Пропускаем BCC копии своих сообщений
+      // ВАЖНО: НЕ пропускаем BCC копии - они нужны для обновления серверного Message-ID!
+      // MessageService сам решит что с ними делать
       if (from == email) {
-        LoggerService.log('UID=$uid: BCC copy from myself, skipping');
-        continue;
+        LoggerService.log('UID=$uid: BCC copy from myself - will process for server Message-ID');
       }
       
       LoggerService.log('UID=$uid: New chat message from $from');
