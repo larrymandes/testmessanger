@@ -7,6 +7,7 @@ import '../services/chat_service.dart';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
 import '../services/logger_service.dart';
+import 'contact_profile_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final String contactEmail;
@@ -28,6 +29,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final _chatController = InMemoryChatController();
   late Function() _messageCallback; // Сохраняем ссылку на callback
   late Function(List<String>, String) _statusUpdateCallback; // Callback для обновления статуса
+  bool _isMutual = false; // Флаг взаимности контакта
 
   @override
   void initState() {
@@ -58,14 +60,34 @@ class _ChatScreenState extends State<ChatScreen> {
     widget.chatService.addStatusUpdateCallback(_statusUpdateCallback);
     LoggerService.log('ChatScreen: Callbacks registered');
     
+    // Проверяем mutual статус
+    _checkMutualStatus();
+    
     // Загружаем сообщения из БД
     _loadMessages();
     _sendReadReceipts();
+  }
+  
+  Future<void> _checkMutualStatus() async {
+    final contact = await StorageService.getContact(
+      widget.chatService.email,
+      widget.contactEmail,
+    );
+    
+    if (mounted) {
+      setState(() {
+        _isMutual = contact?['mutual'] == true;
+      });
+      LoggerService.log('ChatScreen: Mutual status = $_isMutual');
+    }
   }
 
   Future<void> _loadMessages() async {
     final startTime = DateTime.now();
     LoggerService.log('ChatScreen: _loadMessages() called at ${startTime.hour}:${startTime.minute}:${startTime.second}.${startTime.millisecond}');
+    
+    // Обновляем mutual статус
+    await _checkMutualStatus();
     
     final messages = await StorageService.getMessages(
       widget.chatService.email,
@@ -183,6 +205,20 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _handleSendPressed(String text) async {
+    // 🔒 ПРОВЕРКА: Можно ли отправлять сообщения?
+    if (!_isMutual) {
+      LoggerService.log('ChatScreen: ❌ Cannot send - not mutual contacts');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('⚠️ Невозможно отправить сообщение\n\nВы не обменялись инвайтами с этим контактом.\nДождитесь пока собеседник добавит вас в контакты.'),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 5),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    
     final now = DateTime.now().toUtc();
     
     // 1. Разделяем текст на части для UI
@@ -290,43 +326,73 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.contactEmail),
-            FutureBuilder<String>(
-              future: CryptoService.getEmojiFingerprint(widget.contactPublicKey),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const SizedBox();
-                return Text(
-                  snapshot.data!,
-                  style: const TextStyle(
-                    fontSize: 20,
+        title: Text(widget.contactEmail),
+        backgroundColor: const Color(0xFF1a2332),
+        actions: [
+          // Кнопка открытия профиля
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'Профиль контакта',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ContactProfileScreen(
+                    contactEmail: widget.contactEmail,
+                    contactPublicKey: widget.contactPublicKey,
+                    accountEmail: widget.chatService.email,
                   ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Баннер если не взаимные контакты
+          if (!_isMutual)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              color: Colors.orange.withOpacity(0.2),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning, color: Colors.orange, size: 20),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Ожидание подтверждения. Вы не можете отправлять сообщения пока собеседник не добавит вас в контакты.',
+                      style: TextStyle(color: Colors.orange, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          
+          // Чат
+          Expanded(
+            child: Chat(
+              chatController: _chatController,
+              currentUserId: widget.chatService.email,
+              onMessageSend: _handleSendPressed,
+              onMessageLongPress: _handleMessageLongPress,
+              resolveUser: (userId) async {
+                return User(
+                  id: userId,
+                  name: userId == widget.chatService.email ? 'Вы' : widget.contactEmail,
                 );
               },
+              theme: ChatTheme.dark().copyWith(
+                colors: ChatTheme.dark().colors.copyWith(
+                  primary: const Color(0xFF2b5278),
+                  surface: const Color(0xFF0e1621),
+                  onSurface: Colors.white,
+                ),
+              ),
             ),
-          ],
-        ),
-      ),
-      body: Chat(
-        chatController: _chatController,
-        currentUserId: widget.chatService.email,
-        onMessageSend: _handleSendPressed,
-        onMessageLongPress: _handleMessageLongPress, // Добавляем long press
-        resolveUser: (userId) async {
-          return User(
-            id: userId,
-            name: userId == widget.chatService.email ? 'Вы' : widget.contactEmail,
-          );
-        },
-        theme: ChatTheme.dark().copyWith(
-          colors: ChatTheme.dark().colors.copyWith(
-            primary: const Color(0xFF2b5278),
-            surface: const Color(0xFF0e1621),
-            onSurface: Colors.white,
           ),
-        ),
+        ],
       ),
     );
   }

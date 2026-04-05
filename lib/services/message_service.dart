@@ -21,6 +21,9 @@ class MessageService {
   // Callbacks для обновления статуса сообщений (без перезагрузки)
   final List<Function(List<String> uids, String status)> _statusUpdateCallbacks = [];
   
+  // Callback для автоматической отправки ответного инвайта
+  Function(String contactEmail, String contactPubKey)? _sendInviteCallback;
+  
   MessageService({
     required this.accountEmail,
     required this.keyPair,
@@ -54,6 +57,12 @@ class MessageService {
     LoggerService.log('MessageService: Status update callback removed (total: ${_statusUpdateCallbacks.length})');
   }
   
+  /// Регистрация callback для автоматической отправки ответного инвайта
+  void setSendInviteCallback(Function(String contactEmail, String contactPubKey) callback) {
+    _sendInviteCallback = callback;
+    LoggerService.log('MessageService: Send invite callback registered');
+  }
+  
   /// Обработка новых писем (вызывается из EmailService)
   Future<void> processNewMessages(List<MimeMessage> messages) async {
     LoggerService.log('MessageService: Processing ${messages.length} new messages');
@@ -75,9 +84,58 @@ class MessageService {
     
     LoggerService.log('MessageService: Processed $processed/${messages.length} messages');
     
+    // Проверяем и повторяем отправку ответных инвайтов для non-mutual контактов
+    await _retryPendingInvites();
+    
     // Уведомляем UI только если были реальные сообщения (не BCC копии)
     if (shouldNotifyUI) {
       _notifyUI();
+    }
+  }
+  
+  /// Повторная отправка ответных инвайтов для контактов с mutual = false
+  Future<void> _retryPendingInvites() async {
+    try {
+      // ✅ Получаем только те контакты, кому ещё НЕ отправляли (invite_sent = 0)
+      final nonMutualContacts = await StorageService.getNonMutualContacts(accountEmail);
+      
+      if (nonMutualContacts.isEmpty) {
+        return;
+      }
+      
+      LoggerService.log('MessageService: Found ${nonMutualContacts.length} non-mutual contacts (not sent yet), retrying invites...');
+      
+      for (final contact in nonMutualContacts) {
+        final contactEmail = contact['email'] as String;
+        final contactPubKey = contact['publicKey'] as String;
+        
+        if (_sendInviteCallback != null) {
+          try {
+            LoggerService.log('MessageService: Retrying invite to $contactEmail...');
+            await _sendInviteCallback!(contactEmail, contactPubKey);
+            
+            // ✅ Отправка успешна → ставим mutual = true
+            await StorageService.setContactMutual(
+              accountEmail: accountEmail,
+              contactEmail: contactEmail,
+            );
+            LoggerService.log('MessageService: ✅ Retry successful for $contactEmail, set as mutual');
+            
+          } catch (e) {
+            LoggerService.log('MessageService: ❌ Retry failed for $contactEmail: $e');
+            
+            // ✅ Отмечаем что попытка была (защита от спама)
+            await StorageService.markInviteSent(
+              accountEmail: accountEmail,
+              contactEmail: contactEmail,
+            );
+            LoggerService.log('MessageService: ⚠️ Marked as invite_sent (will not retry again)');
+            // Больше не будем пытаться (защита от спама)
+          }
+        }
+      }
+    } catch (e) {
+      LoggerService.log('MessageService: Error in _retryPendingInvites: $e');
     }
   }
   
@@ -303,7 +361,24 @@ class MessageService {
     
     final existing = await StorageService.getContact(accountEmail, contactEmail);
     if (existing != null) {
-      LoggerService.log('⚠️ Contact $contactEmail already exists, skipping');
+      LoggerService.log('⚠️ Contact $contactEmail already exists');
+      
+      // Проверяем: если контакт УЖЕ есть, значит это ОТВЕТНЫЙ инвайт!
+      // Устанавливаем mutual = true
+      if (existing['mutual'] != true) {
+        LoggerService.log('👥 This is a reply invite! Setting mutual = true');
+        await StorageService.setContactMutual(
+          accountEmail: accountEmail,
+          contactEmail: contactEmail,
+        );
+        LoggerService.log('✅ Contact $contactEmail is now mutual!');
+        
+        // Уведомляем UI что статус изменился
+        _notifyUI();
+      } else {
+        LoggerService.log('👥 Contact already mutual, skipping');
+      }
+      
       return;
     }
     
@@ -315,6 +390,37 @@ class MessageService {
     );
     
     LoggerService.log('✅ Contact $contactEmail saved successfully!');
+    
+    // 🔥 АВТОМАТИЧЕСКИ ОТПРАВЛЯЕМ ОТВЕТНЫЙ ИНВАЙТ
+    if (_sendInviteCallback != null) {
+      LoggerService.log('👥 Sending automatic reply invite to $contactEmail...');
+      try {
+        // ВАЖНО: Сначала отправляем, ПОТОМ ставим mutual
+        await _sendInviteCallback!(contactEmail, contactPubKey);
+        LoggerService.log('👥 ✅ Reply invite sent successfully!');
+        
+        // ✅ Отправка успешна → ставим mutual = true
+        await StorageService.setContactMutual(
+          accountEmail: accountEmail,
+          contactEmail: contactEmail,
+        );
+        LoggerService.log('👥 ✅ Contact $contactEmail set as mutual after successful send!');
+        
+      } catch (e) {
+        LoggerService.log('👥 ❌ Failed to send reply invite: $e');
+        
+        // ✅ Отмечаем что попытка была (защита от спама)
+        await StorageService.markInviteSent(
+          accountEmail: accountEmail,
+          contactEmail: contactEmail,
+        );
+        LoggerService.log('👥 ⚠️ Contact saved with invite_sent = true (will not retry)');
+        // Контакт сохранён с mutual = false, invite_sent = true
+        // НЕ будем пытаться снова (защита от спама)
+      }
+    } else {
+      LoggerService.log('👥 ⚠️ Send invite callback not set, skipping reply');
+    }
     
     // ВАЖНО: Уведомляем UI что контакт добавлен
     _notifyUI();
@@ -355,23 +461,15 @@ class MessageService {
   }) async {
     LoggerService.log('📖 MessageService: Checking for unread messages from $contactEmail');
     
-    // Загружаем сообщения от контакта
-    final messages = await StorageService.getMessages(accountEmail, contactEmail);
-    
-    // Фильтруем: не отправленные нами, не прочитанные, с message_id
-    final unread = messages.where((m) {
-      final sent = m['sent'] as bool;
-      final readSent = m['readSent'] as bool;
-      final messageId = m['message_id'] as String?;
-      return !sent && !readSent && messageId != null && messageId.isNotEmpty;
-    }).toList();
+    // ✅ Загружаем ТОЛЬКО сообщения для которых НЕ отправлен read receipt
+    final unread = await StorageService.getUnreadMessagesForReceipt(accountEmail, contactEmail);
     
     if (unread.isEmpty) {
       LoggerService.log('📖 No unread messages to send receipts for');
       return;
     }
     
-    LoggerService.log('📖 Found ${unread.length} unread messages, sending read receipts...');
+    LoggerService.log('📖 Found ${unread.length} unread messages (receipt not sent), sending read receipts...');
     
     // Отправляем read receipt для каждого сообщения
     int sent = 0;
@@ -404,13 +502,14 @@ class MessageService {
         // Отправляем через callback (ChatService.sendMessage)
         await sendMessageCallback(contactEmail, encrypted);
         
-        // Помечаем что read receipt отправлен
-        await StorageService.markMessageReadSent(accountEmail, messageId);
+        // ✅ ВАЖНО: Помечаем что read receipt отправлен (защита от дублирования)
+        await StorageService.markReadReceiptSent(accountEmail, messageId);
         sent++;
         
         LoggerService.log('📖 ✅ Read receipt sent for message_id=$messageId');
       } catch (e) {
         LoggerService.log('📖 ❌ Failed to send read receipt for $messageId: $e');
+        // НЕ помечаем как отправленный - попробуем снова при следующем вызове
       }
     }
     

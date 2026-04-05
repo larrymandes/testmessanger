@@ -28,7 +28,7 @@ class StorageService {
 
     return await openDatabase(
       path,
-      version: 2, // ← Увеличиваем версию для миграции!
+      version: 5, // ← Версия 5: добавляем read_receipt_sent для защиты от дублирования
       onCreate: (db, version) async {
         // Таблица аккаунтов
         await db.execute('''
@@ -45,6 +45,8 @@ class StorageService {
             account_email TEXT NOT NULL,
             contact_email TEXT NOT NULL,
             public_key TEXT NOT NULL,
+            mutual INTEGER DEFAULT 0,
+            invite_sent INTEGER DEFAULT 0,
             PRIMARY KEY (account_email, contact_email)
           )
         ''');
@@ -59,7 +61,8 @@ class StorageService {
             sent INTEGER NOT NULL,
             timestamp INTEGER NOT NULL,
             status TEXT,
-            read_sent INTEGER DEFAULT 0
+            read_sent INTEGER DEFAULT 0,
+            read_receipt_sent INTEGER DEFAULT 0
           )
         ''');
 
@@ -115,6 +118,42 @@ class StorageService {
           await db.execute('ALTER TABLE messages_new RENAME TO messages');
           
           LoggerService.log('DB Migration: ✅ Complete!');
+        }
+        
+        if (oldVersion < 3) {
+          // Миграция с версии 2 на 3: добавляем mutual контакты
+          LoggerService.log('DB Migration: v2 -> v3 (mutual contacts)');
+          
+          // Добавляем колонку mutual (по умолчанию 0 = не взаимные)
+          await db.execute('''
+            ALTER TABLE contacts ADD COLUMN mutual INTEGER DEFAULT 0
+          ''');
+          
+          LoggerService.log('DB Migration: ✅ Mutual contacts added!');
+        }
+        
+        if (oldVersion < 4) {
+          // Миграция с версии 3 на 4: добавляем invite_sent для защиты от спама
+          LoggerService.log('DB Migration: v3 -> v4 (invite_sent tracking)');
+          
+          // Добавляем колонку invite_sent (по умолчанию 0 = не отправлялся)
+          await db.execute('''
+            ALTER TABLE contacts ADD COLUMN invite_sent INTEGER DEFAULT 0
+          ''');
+          
+          LoggerService.log('DB Migration: ✅ Invite sent tracking added!');
+        }
+        
+        if (oldVersion < 5) {
+          // Миграция с версии 4 на 5: добавляем read_receipt_sent для защиты от дублирования
+          LoggerService.log('DB Migration: v4 -> v5 (read_receipt_sent tracking)');
+          
+          // Добавляем колонку read_receipt_sent (по умолчанию 0 = не отправлялся)
+          await db.execute('''
+            ALTER TABLE messages ADD COLUMN read_receipt_sent INTEGER DEFAULT 0
+          ''');
+          
+          LoggerService.log('DB Migration: ✅ Read receipt sent tracking added!');
         }
       },
     );
@@ -186,7 +225,55 @@ class StorageService {
     return {
       'email': results.first['contact_email'],
       'publicKey': results.first['public_key'],
+      'mutual': results.first['mutual'] == 1,
     };
+  }
+  
+  /// Установить контакт как взаимный
+  static Future<void> setContactMutual({
+    required String accountEmail,
+    required String contactEmail,
+  }) async {
+    await _database!.update(
+      'contacts',
+      {'mutual': 1},
+      where: 'account_email = ? AND contact_email = ?',
+      whereArgs: [accountEmail, contactEmail],
+    );
+    LoggerService.log('StorageService: Contact $contactEmail set as mutual');
+  }
+  
+  /// Отметить что ответный инвайт был отправлен
+  static Future<void> markInviteSent({
+    required String accountEmail,
+    required String contactEmail,
+  }) async {
+    await _database!.update(
+      'contacts',
+      {'invite_sent': 1},
+      where: 'account_email = ? AND contact_email = ?',
+      whereArgs: [accountEmail, contactEmail],
+    );
+    LoggerService.log('StorageService: Contact $contactEmail marked as invite_sent');
+  }
+  
+  /// Получить контакты с mutual = false (ожидают ответного инвайта)
+  static Future<List<Map<String, dynamic>>> getNonMutualContacts(
+    String accountEmail,
+  ) async {
+    // ✅ ВАЖНО: Берём только те, кому ещё НЕ отправляли инвайт!
+    final results = await _database!.query(
+      'contacts',
+      where: 'account_email = ? AND mutual = 0 AND invite_sent = 0',
+      whereArgs: [accountEmail],
+    );
+
+    return results
+        .map((r) => {
+              'email': r['contact_email'],
+              'publicKey': r['public_key'],
+            })
+        .toList();
   }
 
   static Future<List<Map<String, dynamic>>> getContacts(
@@ -202,6 +289,7 @@ class StorageService {
         .map((r) => {
               'email': r['contact_email'],
               'publicKey': r['public_key'],
+              'mutual': r['mutual'] == 1,
             })
         .toList();
   }
@@ -266,8 +354,43 @@ class StorageService {
               'timestamp': r['timestamp'],
               'status': r['status'],
               'readSent': r['read_sent'] == 1,
+              'readReceiptSent': r['read_receipt_sent'] == 1,
             })
         .toList();
+  }
+  
+  /// Получить непрочитанные сообщения от контакта (для которых НЕ отправлен read receipt)
+  static Future<List<Map<String, dynamic>>> getUnreadMessagesForReceipt(
+    String accountEmail,
+    String contactEmail,
+  ) async {
+    final results = await _database!.query(
+      'messages',
+      where: 'account_email = ? AND contact_email = ? AND sent = 0 AND read_receipt_sent = 0',
+      whereArgs: [accountEmail, contactEmail],
+      orderBy: 'timestamp ASC',
+    );
+
+    return results
+        .map((r) => {
+              'message_id': r['message_id'],
+              'text': r['text'],
+              'timestamp': r['timestamp'],
+            })
+        .toList();
+  }
+  
+  /// Отметить что read receipt отправлен для сообщения
+  static Future<void> markReadReceiptSent(
+    String accountEmail,
+    String messageId,
+  ) async {
+    await _database!.update(
+      'messages',
+      {'read_receipt_sent': 1},
+      where: 'account_email = ? AND message_id = ?',
+      whereArgs: [accountEmail, messageId],
+    );
   }
 
   /// Удаление дубликатов сообщений (теперь автоматически через REPLACE)

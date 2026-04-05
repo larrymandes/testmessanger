@@ -61,6 +61,12 @@ class ChatService {
     _pendingUICallbacks.clear();
     _pendingStatusCallbacks.clear();
     
+    // 2.2. Регистрируем callback для автоматической отправки ответного инвайта
+    _messageService.setSendInviteCallback((contactEmail, contactPubKey) async {
+      LoggerService.log('ChatService: Auto-reply invite callback triggered for $contactEmail');
+      await _sendInviteReply(contactEmail, contactPubKey);
+    });
+    
     // 3. Создаём EmailService
     _emailService = EmailService(
       email: email,
@@ -545,6 +551,47 @@ class ChatService {
     );
     
     LoggerService.log('ChatService: ✅ Contact $contactEmail saved to DB');
+  }
+  
+  /// Отправка ответного инвайта (БЕЗ сохранения контакта - он уже сохранён)
+  Future<void> _sendInviteReply(String contactEmail, String contactPubKey) async {
+    LoggerService.log('ChatService: Sending reply invite to $contactEmail');
+    
+    try {
+      // 1. Создаём invite сообщение
+      final fingerprint = await CryptoService.getEmojiFingerprint(_accountData.publicKeyHex);
+      final inviteMessage = jsonEncode({
+        'type': 'invite',
+        'email': email,
+        'pubkey': _accountData.publicKeyHex,
+        'fingerprint': fingerprint,
+      });
+      
+      // 2. Шифруем
+      final encrypted = await CryptoService.encryptMessage(
+        plaintext: inviteMessage,
+        recipientPubKeyHex: contactPubKey,
+        senderEmail: email,
+        recipientEmail: contactEmail,
+      );
+      
+      // 3. Отправляем (контакт УЖЕ сохранён, просто отправляем)
+      await sendMessage(
+        toEmail: contactEmail,
+        encryptedPayload: jsonEncode(encrypted),
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Таймаут отправки ответного инвайта (30 сек)');
+        },
+      );
+      
+      LoggerService.log('ChatService: ✅ Reply invite sent to $contactEmail');
+    } catch (e) {
+      LoggerService.log('ChatService: ❌ Failed to send reply invite: $e');
+      // Не критично, контакт уже сохранён
+      rethrow;
+    }
   }
   
   /// Отправка read receipts для контакта (вызывается из UI)
