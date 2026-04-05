@@ -326,9 +326,11 @@ class MessageService {
     final contactEmail = invite['email'] as String;
     final contactPubKey = invite['pubkey'] as String;
     final expectedFingerprint = invite['fingerprint'] as String?;
+    final contactNickname = invite['nickname'] as String?; // ✅ Никнейм из инвайта
     
     LoggerService.log('👥 Contact email: $contactEmail');
     LoggerService.log('👥 Contact pubkey length: ${contactPubKey.length}');
+    LoggerService.log('👥 Contact nickname: ${contactNickname ?? "(none)"}');
     LoggerService.log('👥 From: $from');
     
     if (from != contactEmail) {
@@ -366,6 +368,16 @@ class MessageService {
     if (existing != null) {
       LoggerService.log('⚠️ Contact $contactEmail already exists');
       
+      // ✅ Обновляем никнейм если пришёл новый
+      if (contactNickname != null && contactNickname.isNotEmpty) {
+        await StorageService.updateContactNickname(
+          accountEmail: accountEmail,
+          contactEmail: contactEmail,
+          nickname: contactNickname,
+        );
+        LoggerService.log('👥 ✅ Updated nickname to: $contactNickname');
+      }
+      
       // Проверяем: если контакт УЖЕ есть, значит это ОТВЕТНЫЙ инвайт!
       // Устанавливаем mutual = true
       if (existing['mutual'] != true) {
@@ -390,9 +402,10 @@ class MessageService {
       accountEmail: accountEmail,
       contactEmail: contactEmail,
       publicKey: contactPubKey,
+      nickname: contactNickname, // ✅ Сохраняем никнейм
     );
     
-    LoggerService.log('✅ Contact $contactEmail saved successfully!');
+    LoggerService.log('✅ Contact $contactEmail saved successfully with nickname: ${contactNickname ?? "(none)"}');
     
     // 🔥 АВТОМАТИЧЕСКИ ОТПРАВЛЯЕМ ОТВЕТНЫЙ ИНВАЙТ
     if (_sendInviteCallback != null) {
@@ -569,6 +582,29 @@ class MessageService {
     if (messageId.isEmpty) {
       LoggerService.log('❌ No Message-ID, cannot save message!');
       return;
+    }
+    
+    // ✅ СИНХРОНИЗАЦИЯ НИКНЕЙМА: Извлекаем из сообщения и обновляем в БД
+    final senderNickname = message['sender_nickname'] as String?;
+    final senderEmail = message['sender_email'] as String?;
+    
+    if (senderNickname != null && senderNickname.isNotEmpty) {
+      LoggerService.log('💬 ✅ Sender nickname in message: "$senderNickname"');
+      
+      // Обновляем никнейм контакта в БД
+      try {
+        await StorageService.updateContactNickname(
+          accountEmail: accountEmail,
+          contactEmail: from,
+          nickname: senderNickname,
+        );
+        LoggerService.log('💬 ✅ Contact nickname updated to: "$senderNickname"');
+      } catch (e) {
+        LoggerService.log('💬 ⚠️ Failed to update contact nickname: $e');
+        // Не критично, продолжаем
+      }
+    } else {
+      LoggerService.log('💬 No sender_nickname in message');
     }
     
     await StorageService.saveMessage(

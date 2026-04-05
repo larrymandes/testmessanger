@@ -30,6 +30,7 @@ class _ChatScreenState extends State<ChatScreen> {
   late Function() _messageCallback; // Сохраняем ссылку на callback
   late Function(List<String>, String) _statusUpdateCallback; // Callback для обновления статуса
   bool _isMutual = false; // Флаг взаимности контакта
+  String _contactNickname = ''; // ✅ Никнейм контакта
 
   @override
   void initState() {
@@ -61,7 +62,7 @@ class _ChatScreenState extends State<ChatScreen> {
     widget.chatService.addStatusUpdateCallback(_statusUpdateCallback);
     LoggerService.log('ChatScreen: Callbacks registered');
     
-    // Проверяем mutual статус
+    // Проверяем mutual статус и загружаем никнейм
     _checkMutualStatus();
     
     // Загружаем сообщения из БД (read receipts отправятся автоматически)
@@ -77,8 +78,9 @@ class _ChatScreenState extends State<ChatScreen> {
     if (mounted) {
       setState(() {
         _isMutual = contact?['mutual'] == true;
+        _contactNickname = contact?['nickname'] ?? ''; // ✅ Загружаем никнейм
       });
-      LoggerService.log('ChatScreen: Mutual status = $_isMutual');
+      LoggerService.log('ChatScreen: Mutual status = $_isMutual, nickname = $_contactNickname');
     }
   }
 
@@ -343,9 +345,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ Показываем никнейм если есть, иначе email
+    final displayName = _contactNickname.isNotEmpty ? _contactNickname : widget.contactEmail;
+    
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.contactEmail),
+        title: Text(displayName),
         backgroundColor: const Color(0xFF1a2332),
         actions: [
           // Кнопка открытия профиля

@@ -128,6 +128,7 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
       
       _chats[contact['email']] = {
         'publicKey': contact['publicKey'],
+        'nickname': contact['nickname'], // ✅ Никнейм
         'messages': messages,
         'lastMessage': messages.isNotEmpty ? messages.first['text'] : null,
         'unreadCount': unreadCount,
@@ -161,6 +162,11 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            tooltip: 'Изменить никнейм',
+            onPressed: _editNickname,
+          ),
           IconButton(
             icon: const Icon(Icons.bug_report),
             onPressed: () {
@@ -275,12 +281,16 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
         final email = _chats.keys.elementAt(index);
         final chat = _chats[email]!;
         final unreadCount = chat['unreadCount'] as int;
+        final nickname = chat['nickname'] as String? ?? '';
+        
+        // ✅ Показываем никнейм если есть, иначе email
+        final displayName = nickname.isNotEmpty ? nickname : email;
         
         return ListTile(
           leading: CircleAvatar(
-            child: Text(email[0].toUpperCase()),
+            child: Text(displayName[0].toUpperCase()),
           ),
-          title: Text(email),
+          title: Text(displayName),
           subtitle: Text(
             chat['lastMessage'] ?? 'Нет сообщений',
             maxLines: 1,
@@ -445,6 +455,72 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
             );
           },
         ),
+      ),
+    );
+  }
+  
+  void _editNickname() async {
+    // Загружаем текущий никнейм
+    final account = await StorageService.getAccount(widget.email);
+    final currentNickname = account?['nickname'] ?? '';
+    
+    final controller = TextEditingController(text: currentNickname);
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Изменить никнейм'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Никнейм',
+            hintText: 'Введите никнейм',
+          ),
+          maxLength: 32,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final nickname = controller.text.trim();
+              
+              try {
+                // Сохраняем никнейм
+                await StorageService.updateAccountNickname(widget.email, nickname);
+                
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(nickname.isEmpty 
+                        ? '✓ Никнейм удалён' 
+                        : '✓ Никнейм изменён на "$nickname"'),
+                      backgroundColor: Colors.green,
+                      duration: const Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('✗ Ошибка: $e'),
+                      backgroundColor: Colors.red,
+                      duration: const Duration(seconds: 3),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Сохранить'),
+          ),
+        ],
       ),
     );
   }

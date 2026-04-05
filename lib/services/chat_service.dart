@@ -220,7 +220,11 @@ class ChatService {
       throw Exception('Неверный формат публичного ключа получателя');
     }
     
-    // 2. Разделяем текст на части
+    // 2. Получаем свой никнейм
+    final myAccount = await StorageService.getAccount(email);
+    final myNickname = myAccount?['nickname'] ?? '';
+    
+    // 3. Разделяем текст на части
     final parts = _splitTextIntoParts(text);
     LoggerService.log('ChatService: Split into ${parts.length} part(s)');
     
@@ -228,7 +232,7 @@ class ChatService {
       throw Exception('Message-IDs count (${messageIds.length}) != parts count (${parts.length})');
     }
     
-    // 3. Отправляем каждую часть с rate limiting
+    // 4. Отправляем каждую часть с rate limiting
     for (int i = 0; i < parts.length; i++) {
       try {
         // Ждём если нужно (rate limiting)
@@ -236,11 +240,13 @@ class ChatService {
         
         LoggerService.log('ChatService: Sending part ${i + 1}/${parts.length} (${parts[i].length} chars)');
         
-        // Шифруем (добавляем local_message_id для BCC обработки)
+        // ✅ Шифруем (добавляем sender_nickname в КАЖДОЕ сообщение!)
         final encrypted = await CryptoService.encryptMessage(
           plaintext: jsonEncode({
             'text': parts[i],
             'local_message_id': messageIds[i],  // ← Для BCC обработки!
+            'sender_nickname': myNickname.isNotEmpty ? myNickname : null, // ✅ Никнейм!
+            'sender_email': email, // ✅ Email на всякий случай
           }),
           recipientPubKeyHex: recipientPublicKey,
           senderEmail: email,
@@ -302,18 +308,22 @@ class ChatService {
       throw Exception('Неверный формат публичного ключа получателя');
     }
     
-    // 2. Разделяем текст на части
+    // 2. Получаем свой никнейм
+    final myAccount = await StorageService.getAccount(email);
+    final myNickname = myAccount?['nickname'] ?? '';
+    
+    // 3. Разделяем текст на части
     final parts = _splitTextIntoParts(text);
     LoggerService.log('ChatService: Split into ${parts.length} part(s)');
     
-    // 3. Генерируем UIDs для всех частей
+    // 4. Генерируем UIDs для всех частей
     final uids = <String>[];
     for (int i = 0; i < parts.length; i++) {
       final uid = '${DateTime.now().millisecondsSinceEpoch}_${DateTime.now().microsecond}_$i';
       uids.add(uid);
     }
     
-    // 4. Отправляем каждую часть с rate limiting
+    // 5. Отправляем каждую часть с rate limiting
     for (int i = 0; i < parts.length; i++) {
       try {
         // Ждём если нужно (rate limiting)
@@ -321,10 +331,12 @@ class ChatService {
         
         LoggerService.log('ChatService: Sending part ${i + 1}/${parts.length} (${parts[i].length} chars)');
         
-        // Шифруем (БЕЗ UID - используем Message-ID!)
+        // ✅ Шифруем (добавляем sender_nickname в КАЖДОЕ сообщение!)
         final encrypted = await CryptoService.encryptMessage(
           plaintext: jsonEncode({
             'text': parts[i],
+            'sender_nickname': myNickname.isNotEmpty ? myNickname : null, // ✅ Никнейм!
+            'sender_email': email, // ✅ Email на всякий случай
           }),
           recipientPubKeyHex: recipientPublicKey,
           senderEmail: email,
@@ -511,16 +523,21 @@ class ChatService {
       return; // Не ошибка, просто уже есть
     }
     
-    // 4. Создаём invite сообщение
+    // 4. Получаем свой никнейм из БД
+    final myAccount = await StorageService.getAccount(email);
+    final myNickname = myAccount?['nickname'] ?? '';
+    
+    // 5. Создаём invite сообщение с никнеймом
     final fingerprint = await CryptoService.getEmojiFingerprint(_accountData.publicKeyHex);
     final inviteMessage = jsonEncode({
       'type': 'invite',
       'email': email,
       'pubkey': _accountData.publicKeyHex,
-      'fingerprint': fingerprint,  // ← Добавляем fingerprint!
+      'fingerprint': fingerprint,
+      'nickname': myNickname.isNotEmpty ? myNickname : null, // ✅ Никнейм
     });
     
-    // 5. Шифруем
+    // 6. Шифруем
     LoggerService.log('ChatService: Encrypting invite...');
     final encrypted = await CryptoService.encryptMessage(
       plaintext: inviteMessage,
@@ -529,7 +546,7 @@ class ChatService {
       recipientEmail: contactEmail,
     );
     
-    // 6. ВАЖНО: СНАЧАЛА отправляем invite
+    // 7. ВАЖНО: СНАЧАЛА отправляем invite
     LoggerService.log('ChatService: Sending invite via SMTP...');
     await sendMessage(
       toEmail: contactEmail,
@@ -543,7 +560,7 @@ class ChatService {
     
     LoggerService.log('ChatService: ✅ Invite sent successfully!');
     
-    // 7. Invite отправлен успешно → ТЕПЕРЬ сохраняем контакт в БД
+    // 8. Invite отправлен успешно → ТЕПЕРЬ сохраняем контакт в БД
     await StorageService.saveContact(
       accountEmail: email,
       contactEmail: contactEmail,
@@ -558,16 +575,21 @@ class ChatService {
     LoggerService.log('ChatService: Sending reply invite to $contactEmail');
     
     try {
-      // 1. Создаём invite сообщение
+      // 1. Получаем свой никнейм из БД
+      final myAccount = await StorageService.getAccount(email);
+      final myNickname = myAccount?['nickname'] ?? '';
+      
+      // 2. Создаём invite сообщение с никнеймом
       final fingerprint = await CryptoService.getEmojiFingerprint(_accountData.publicKeyHex);
       final inviteMessage = jsonEncode({
         'type': 'invite',
         'email': email,
         'pubkey': _accountData.publicKeyHex,
         'fingerprint': fingerprint,
+        'nickname': myNickname.isNotEmpty ? myNickname : null, // ✅ Никнейм
       });
       
-      // 2. Шифруем
+      // 3. Шифруем
       final encrypted = await CryptoService.encryptMessage(
         plaintext: inviteMessage,
         recipientPubKeyHex: contactPubKey,
@@ -575,7 +597,7 @@ class ChatService {
         recipientEmail: contactEmail,
       );
       
-      // 3. Отправляем (контакт УЖЕ сохранён, просто отправляем)
+      // 4. Отправляем (контакт УЖЕ сохранён, просто отправляем)
       await sendMessage(
         toEmail: contactEmail,
         encryptedPayload: jsonEncode(encrypted),

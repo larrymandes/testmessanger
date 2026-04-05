@@ -28,14 +28,15 @@ class StorageService {
 
     return await openDatabase(
       path,
-      version: 5, // ← Версия 5: добавляем read_receipt_sent для защиты от дублирования
+      version: 6, // ← Версия 6: добавляем nickname для аккаунтов и контактов
       onCreate: (db, version) async {
         // Таблица аккаунтов
         await db.execute('''
           CREATE TABLE accounts (
             email TEXT PRIMARY KEY,
             private_key TEXT NOT NULL,
-            public_key TEXT NOT NULL
+            public_key TEXT NOT NULL,
+            nickname TEXT
           )
         ''');
 
@@ -47,6 +48,7 @@ class StorageService {
             public_key TEXT NOT NULL,
             mutual INTEGER DEFAULT 0,
             invite_sent INTEGER DEFAULT 0,
+            nickname TEXT,
             PRIMARY KEY (account_email, contact_email)
           )
         ''');
@@ -155,6 +157,23 @@ class StorageService {
           
           LoggerService.log('DB Migration: ✅ Read receipt sent tracking added!');
         }
+        
+        if (oldVersion < 6) {
+          // Миграция с версии 5 на 6: добавляем nickname для аккаунтов и контактов
+          LoggerService.log('DB Migration: v5 -> v6 (nicknames)');
+          
+          // Добавляем колонку nickname в accounts
+          await db.execute('''
+            ALTER TABLE accounts ADD COLUMN nickname TEXT
+          ''');
+          
+          // Добавляем колонку nickname в contacts
+          await db.execute('''
+            ALTER TABLE contacts ADD COLUMN nickname TEXT
+          ''');
+          
+          LoggerService.log('DB Migration: ✅ Nicknames added!');
+        }
       },
     );
   }
@@ -165,6 +184,7 @@ class StorageService {
     required String email,
     required String privateKey,
     required String publicKey,
+    String? nickname,
   }) async {
     await _database!.insert(
       'accounts',
@@ -172,6 +192,7 @@ class StorageService {
         'email': email,
         'private_key': privateKey,
         'public_key': publicKey,
+        'nickname': nickname,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -189,7 +210,19 @@ class StorageService {
     return {
       'privateKey': results.first['private_key'] as String,
       'publicKey': results.first['public_key'] as String,
+      'nickname': (results.first['nickname'] as String?) ?? '',
     };
+  }
+  
+  /// Обновить никнейм аккаунта
+  static Future<void> updateAccountNickname(String email, String nickname) async {
+    await _database!.update(
+      'accounts',
+      {'nickname': nickname},
+      where: 'email = ?',
+      whereArgs: [email],
+    );
+    LoggerService.log('StorageService: Account nickname updated: $email -> $nickname');
   }
 
   // === Контакты ===
@@ -198,6 +231,7 @@ class StorageService {
     required String accountEmail,
     required String contactEmail,
     required String publicKey,
+    String? nickname,
   }) async {
     await _database!.insert(
       'contacts',
@@ -205,6 +239,7 @@ class StorageService {
         'account_email': accountEmail,
         'contact_email': contactEmail,
         'public_key': publicKey,
+        'nickname': nickname,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -226,7 +261,23 @@ class StorageService {
       'email': results.first['contact_email'],
       'publicKey': results.first['public_key'],
       'mutual': results.first['mutual'] == 1,
+      'nickname': (results.first['nickname'] as String?) ?? '',
     };
+  }
+  
+  /// Обновить никнейм контакта
+  static Future<void> updateContactNickname({
+    required String accountEmail,
+    required String contactEmail,
+    required String nickname,
+  }) async {
+    await _database!.update(
+      'contacts',
+      {'nickname': nickname},
+      where: 'account_email = ? AND contact_email = ?',
+      whereArgs: [accountEmail, contactEmail],
+    );
+    LoggerService.log('StorageService: Contact nickname updated: $contactEmail -> $nickname');
   }
   
   /// Установить контакт как взаимный
@@ -290,6 +341,7 @@ class StorageService {
               'email': r['contact_email'],
               'publicKey': r['public_key'],
               'mutual': r['mutual'] == 1,
+              'nickname': (r['nickname'] as String?) ?? '',
             })
         .toList();
   }
