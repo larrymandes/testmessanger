@@ -156,9 +156,10 @@ class _ChatScreenState extends State<ChatScreen> {
       authorId: isSent ? widget.chatService.email : widget.contactEmail,
       createdAt: timestamp,
       text: msg['text'],
-      // Отправленные: показываем галочки
-      // ✅ ВАЖНО: sentAt должен быть установлен для ВСЕХ отправленных (кроме error)
-      sentAt: isSent && status != 'error' && status != 'sending' ? timestamp : null,
+      // ✅ Галочки для отправленных сообщений:
+      // - status == 'sent' → sentAt установлен → одна галочка ✓
+      // - status == 'read' → sentAt + seenAt установлены → две галочки ✓✓
+      sentAt: isSent && (status == 'sent' || status == 'read') ? timestamp : null,
       seenAt: isSent && status == 'read' ? timestamp : null,
       // Ошибка отправки
       failedAt: isSent && status == 'error' ? timestamp : null,

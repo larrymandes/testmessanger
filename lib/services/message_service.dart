@@ -59,10 +59,15 @@ class MessageService {
     LoggerService.log('MessageService: Processing ${messages.length} new messages');
     
     int processed = 0;
+    bool shouldNotifyUI = false;
+    
     for (final message in messages) {
       try {
-        await _processMessage(message);
+        final notifyUI = await _processMessage(message);
         processed++;
+        if (notifyUI) {
+          shouldNotifyUI = true;
+        }
       } catch (e) {
         LoggerService.log('MessageService: Error processing message: $e');
       }
@@ -70,14 +75,15 @@ class MessageService {
     
     LoggerService.log('MessageService: Processed $processed/${messages.length} messages');
     
-    // Уведомляем UI
-    if (processed > 0) {
+    // Уведомляем UI только если были реальные сообщения (не BCC копии)
+    if (shouldNotifyUI) {
       _notifyUI();
     }
   }
   
   /// Обработка одного письма
-  Future<void> _processMessage(MimeMessage mimeMessage) async {
+  /// Возвращает true если нужно уведомить UI (не BCC копия)
+  Future<bool> _processMessage(MimeMessage mimeMessage) async {
     final from = mimeMessage.from?.first?.email ?? '';
     final uid = mimeMessage.uid ?? 0;
     final messageId = mimeMessage.decodeHeaderValue('message-id') ?? '';
@@ -133,7 +139,7 @@ class MessageService {
           LoggerService.log('📤 Local and server Message-IDs are the same, skipping update');
         }
         
-        return; // ✅ Готово! Не нужно расшифровывать
+        return false; // ✅ BCC копия - НЕ уведомляем UI
       }
       
       // ❌ Заголовка нет - пробуем старый способ (расшифровка body)
@@ -176,7 +182,7 @@ class MessageService {
         LoggerService.log('📤 ⚠️ Failed to extract local Message-ID from BCC: $e');
       }
       
-      return;
+      return false; // ✅ BCC копия - НЕ уведомляем UI
     }
     
     // Получаем body
@@ -248,6 +254,8 @@ class MessageService {
     
     LoggerService.log('✅ Message UID=$uid processed');
     LoggerService.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
+    return true; // ✅ Обычное сообщение - уведомляем UI
   }
   
   Future<void> _handleInvite(Map<String, dynamic> invite, String from) async {
