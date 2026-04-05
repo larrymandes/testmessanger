@@ -93,14 +93,14 @@ class MessageService {
     
     if (uid == 0) {
       LoggerService.log('❌ UID is 0, skipping');
-      return;
+      return false; // ✅ Не уведомляем UI
     }
     
     // ВАЖНО: Проверяем что UID ещё НЕ обработан (защита от дублирования)
     final alreadyProcessed = await StorageService.isUIDProcessed(accountEmail, uid);
     if (alreadyProcessed) {
       LoggerService.log('⏭️ UID=$uid already processed, skipping');
-      return;
+      return false; // ✅ Не уведомляем UI
     }
     
     // ВАЖНО: Проверяем Message-ID (защита от дублирования при повторном fetch)
@@ -110,7 +110,7 @@ class MessageService {
         LoggerService.log('⏭️ Message-ID=$messageId already processed, skipping');
         // Помечаем UID тоже (на всякий случай)
         await StorageService.addProcessedUID(accountEmail, uid);
-        return;
+        return false; // ✅ Не уведомляем UI
       }
     }
     
@@ -207,7 +207,7 @@ class MessageService {
       LoggerService.log('🔐 Encrypted JSON parsed, keys: ${encrypted.keys.toList()}');
     } catch (e) {
       LoggerService.log('❌ Failed to parse encrypted JSON: $e');
-      return;
+      return false; // ✅ Не уведомляем UI
     }
     
     // Расшифровываем
@@ -221,7 +221,7 @@ class MessageService {
       LoggerService.log('📝 Plaintext: $plaintext');
     } catch (e) {
       LoggerService.log('❌ Decryption failed: $e');
-      return;
+      return false; // ✅ Не уведомляем UI
     }
     
     // Обрабатываем по типу
