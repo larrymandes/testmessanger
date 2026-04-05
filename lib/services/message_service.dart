@@ -119,6 +119,26 @@ class MessageService {
     if (from == accountEmail) {
       LoggerService.log('📤 BCC copy from myself - extracting server Message-ID');
       
+      // ✅ СНАЧАЛА пробуем извлечь локальный Message-ID из заголовка (быстро и надёжно!)
+      final localMessageIdFromHeader = mimeMessage.decodeHeaderValue('x-local-message-id');
+      
+      if (localMessageIdFromHeader != null && localMessageIdFromHeader.isNotEmpty && messageId.isNotEmpty) {
+        LoggerService.log('📤 ✅ Found X-Local-Message-ID in header: $localMessageIdFromHeader');
+        
+        if (localMessageIdFromHeader != messageId) {
+          LoggerService.log('📤 Updating server Message-ID: $localMessageIdFromHeader -> $messageId');
+          await _updateServerMessageId(localMessageIdFromHeader, messageId);
+          LoggerService.log('📤 ✅ Server Message-ID updated successfully!');
+        } else {
+          LoggerService.log('📤 Local and server Message-IDs are the same, skipping update');
+        }
+        
+        return; // ✅ Готово! Не нужно расшифровывать
+      }
+      
+      // ❌ Заголовка нет - пробуем старый способ (расшифровка body)
+      LoggerService.log('📤 ⚠️ X-Local-Message-ID header not found, trying to decrypt body...');
+      
       // Получаем body для извлечения локального Message-ID
       String body = '';
       final textPlainPart = mimeMessage.getPartWithMediaSubtype(MediaSubtype.textPlain);

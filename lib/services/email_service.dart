@@ -577,6 +577,12 @@ class EmailService {
         }
         
         builder.setHeader('Message-ID', messageId);
+        
+        // ✅ ВАЖНО: Добавляем локальный Message-ID в заголовок для BCC копии!
+        // Это позволит извлечь локальный ID из BCC копии БЕЗ расшифровки
+        builder.setHeader('X-Local-Message-ID', messageId);
+        LoggerService.log('SMTP [7/9]: Added X-Local-Message-ID header: $messageId');
+        
         final message = builder.buildMimeMessage();
         LoggerService.log('SMTP [7/9]: ✓ Message built (${message.toString().length} bytes)');
         
