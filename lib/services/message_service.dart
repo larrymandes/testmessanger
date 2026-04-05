@@ -334,6 +334,8 @@ class MessageService {
       LoggerService.log('📖 ✅ Message $originalMessageId marked as READ');
       // Уведомляем UI об обновлении статуса
       _notifyStatusUpdate([originalMessageId], 'read');
+      // ✅ ВАЖНО: Также уведомляем UI для перезагрузки из БД!
+      _notifyUI();
     } else {
       LoggerService.log('📖 ⚠️ Message $originalMessageId not found in DB');
     }

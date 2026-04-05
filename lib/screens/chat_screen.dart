@@ -111,9 +111,14 @@ class _ChatScreenState extends State<ChatScreen> {
       if (oldMessage is! TextMessage) continue;
       
       // Создаём обновлённое сообщение
+      // ✅ ВАЖНО: При переходе в "read" сохраняем sentAt (если был) или устанавливаем now
       final updatedMessage = oldMessage.copyWith(
         seenAt: status == 'read' ? now : oldMessage.seenAt,
-        sentAt: status == 'sent' ? now : oldMessage.sentAt,
+        sentAt: status == 'sent' 
+          ? now 
+          : status == 'read' 
+            ? (oldMessage.sentAt ?? now)  // ✅ Сохраняем или устанавливаем
+            : oldMessage.sentAt,
         failedAt: status == 'error' ? now : null,
         metadata: status == 'sending' 
           ? {'sending': true}
@@ -145,7 +150,8 @@ class _ChatScreenState extends State<ChatScreen> {
       createdAt: timestamp,
       text: msg['text'],
       // Отправленные: показываем галочки
-      sentAt: isSent && status == 'sent' ? timestamp : null,
+      // ✅ ВАЖНО: sentAt должен быть установлен для ВСЕХ отправленных (кроме error)
+      sentAt: isSent && status != 'error' && status != 'sending' ? timestamp : null,
       seenAt: isSent && status == 'read' ? timestamp : null,
       // Ошибка отправки
       failedAt: isSent && status == 'error' ? timestamp : null,
