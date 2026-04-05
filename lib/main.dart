@@ -14,7 +14,7 @@ class SecureMessengerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Secure Messenger',
+      title: 'Beta Chat',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF2b5278),

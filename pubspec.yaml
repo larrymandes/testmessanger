@@ -1,6 +1,6 @@
-name: secure_messenger
-description: E2EE messenger over email without servers
-version: 1.0.0
+name: beta_chat
+description: Beta Chat - E2EE messenger over email
+version: 1.0.0+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -37,6 +37,22 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icon.png
+
+# Конфигурация иконки
+flutter_launcher_icons:
+  android: true
+  ios: true
+  windows:
+    generate: true
+    image_path: "assets/icon.png"
+    icon_size: 48
+  image_path: "assets/icon.png"
+  adaptive_icon_background: "#2b5278"
+  adaptive_icon_foreground: "assets/icon.png"
+  remove_alpha_ios: true

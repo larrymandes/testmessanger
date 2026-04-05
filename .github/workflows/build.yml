@@ -6,27 +6,58 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-      - run: flutter create . --platforms=windows
-      - run: flutter clean
-      - run: flutter pub get
-      - run: flutter pub get
-      - run: flutter build windows --release
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-exe
-          path: build/windows/x64/runner/Release/
+  # Windows билд закомментирован - билдится локально
+  # build-windows:
+  #   runs-on: windows-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     
+  #     # Генерируем версию: дата + время + git hash
+  #     - name: Generate version
+  #       id: version
+  #       shell: pwsh
+  #       run: |
+  #         $date = Get-Date -Format "yyyy.MM.dd"
+  #         $time = Get-Date -Format "HHmm"
+  #         $hash = git rev-parse --short HEAD
+  #         $version = "v$date-$time-$hash"
+  #         echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+  #         echo "Generated version: $version"
+  #     
+  #     - uses: subosito/flutter-action@v2
+  #       with:
+  #         channel: 'stable'
+  #     - run: flutter create . --platforms=windows
+  #     - run: flutter clean
+  #     - run: flutter pub get
+  #     - run: flutter build windows --release
+  #     
+  #     # Переименовываем .exe с версией
+  #     - name: Rename exe with version
+  #       shell: pwsh
+  #       run: |
+  #         $version = "${{ steps.version.outputs.VERSION }}"
+  #         Rename-Item "build/windows/x64/runner/Release/beta_chat.exe" "beta_chat-$version.exe"
+  #         echo "Renamed to: beta_chat-$version.exe"
+  #     
+  #     - uses: actions/upload-artifact@v4
+  #       with:
+  #         name: windows-exe-${{ steps.version.outputs.VERSION }}
+  #         path: build/windows/x64/runner/Release/
 
   build-android:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
+      # Генерируем версию
+      - name: Generate version
+        id: version
+        run: |
+          VERSION="v$(date +'%Y.%m.%d-%H%M')-$(git rev-parse --short HEAD)"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
+      
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
@@ -36,21 +67,48 @@ jobs:
           channel: 'stable'
       - run: flutter create . --platforms=android
       - run: flutter pub get
+      
+      # Генерируем иконки для Android
+      - name: Generate Android icons
+        run: dart run flutter_launcher_icons
+      
       - run: flutter build apk --release
+      
+      # Переименовываем APK с версией
+      - name: Rename APK with version
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/beta_chat-$VERSION.apk
+          echo "Renamed to: beta_chat-$VERSION.apk"
+      
       - uses: actions/upload-artifact@v4
         with:
-          name: android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: android-apk-${{ steps.version.outputs.VERSION }}
+          path: build/app/outputs/flutter-apk/beta_chat-*.apk
 
   build-ios:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      
+      # Генерируем версию
+      - name: Generate version
+        id: version
+        run: |
+          VERSION="v$(date +'%Y.%m.%d-%H%M')-$(git rev-parse --short HEAD)"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
+      
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
       - run: flutter create . --platforms=ios
       - run: flutter pub get
+      
+      # Генерируем иконки для iOS
+      - name: Generate iOS icons
+        run: dart run flutter_launcher_icons
+      
       - name: Add iOS permissions
         run: |
           /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Для сканирования QR-кодов контактов'" ios/Runner/Info.plist || true
@@ -71,7 +129,15 @@ jobs:
           ln -s ../Runner.app
           cd ..
           zip -r app.ipa Payload
+      
+      # Переименовываем IPA с версией
+      - name: Rename IPA with version
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          mv build/ios/iphoneos/app.ipa build/ios/iphoneos/beta_chat-$VERSION.ipa
+          echo "Renamed to: beta_chat-$VERSION.ipa"
+      
       - uses: actions/upload-artifact@v4
         with:
-          name: ios-ipa-unsigned
-          path: build/ios/iphoneos/app.ipa
+          name: ios-ipa-unsigned-${{ steps.version.outputs.VERSION }}
+          path: build/ios/iphoneos/beta_chat-*.ipa
