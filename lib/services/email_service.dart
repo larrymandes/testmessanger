@@ -274,10 +274,11 @@ class EmailService {
 
   // Получение новых сообщений (как Delta Chat - используем UIDNEXT)
   Future<List<MimeMessage>> fetchNewMessages({int lastSeenUid = 0}) async {
-    // Если уже идёт fetch - ждём его завершения вместо возврата пустого списка
+    // ✅ КРИТИЧЕСКИ ВАЖНО: Если уже идёт fetch - возвращаем ПУСТОЙ список!
+    // Иначе все ожидающие получат ОДНИ И ТЕ ЖЕ сообщения → дублирование обработки!
     if (_isFetching && _currentFetch != null) {
-      LoggerService.log('EmailService: Already fetching, waiting for completion...');
-      return await _currentFetch!;
+      LoggerService.log('EmailService: Already fetching, returning empty list (no duplicates)');
+      return [];
     }
     
     _isFetching = true;

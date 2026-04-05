@@ -42,7 +42,8 @@ class _ChatScreenState extends State<ChatScreen> {
       if (mounted) {
         LoggerService.log('ChatScreen: Loading messages...');
         _loadMessages();
-        _sendReadReceipts();
+        // ✅ НЕ отправляем read receipts при каждом callback!
+        // Read receipts отправляются ТОЛЬКО при открытии чата (в initState)
       } else {
         LoggerService.log('ChatScreen: NOT mounted, skipping');
       }
@@ -63,9 +64,8 @@ class _ChatScreenState extends State<ChatScreen> {
     // Проверяем mutual статус
     _checkMutualStatus();
     
-    // Загружаем сообщения из БД
+    // Загружаем сообщения из БД (read receipts отправятся автоматически)
     _loadMessages();
-    _sendReadReceipts();
   }
   
   Future<void> _checkMutualStatus() async {
@@ -113,8 +113,34 @@ class _ChatScreenState extends State<ChatScreen> {
       final endTime = DateTime.now();
       final totalDuration = endTime.difference(startTime).inMilliseconds;
       LoggerService.log('ChatScreen: ✅ UI updated in ${totalDuration}ms total (DB: ${dbDuration}ms, UI: ${totalDuration - dbDuration}ms)');
+      
+      // ✅ ВАЖНО: Отправляем read receipts ПОСЛЕ загрузки сообщений
+      // Это гарантирует что мы отправим receipts для ВСЕХ непрочитанных сообщений
+      _sendReadReceiptsIfNeeded();
     } else {
       LoggerService.log('ChatScreen: NOT mounted, cannot update UI');
+    }
+  }
+  
+  /// Отправка read receipts ТОЛЬКО если есть непрочитанные сообщения
+  Future<void> _sendReadReceiptsIfNeeded() async {
+    try {
+      // Проверяем есть ли непрочитанные сообщения
+      final unread = await StorageService.getUnreadMessagesForReceipt(
+        widget.chatService.email,
+        widget.contactEmail,
+      );
+      
+      if (unread.isEmpty) {
+        LoggerService.log('ChatScreen: No unread messages, skipping read receipts');
+        return;
+      }
+      
+      LoggerService.log('ChatScreen: Found ${unread.length} unread messages, sending read receipts...');
+      await widget.chatService.sendReadReceipts(widget.contactEmail);
+      LoggerService.log('ChatScreen: ✅ Read receipts sent');
+    } catch (e) {
+      LoggerService.log('ChatScreen: ❌ Read receipts error: $e');
     }
   }
   
@@ -208,14 +234,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // 🔒 ПРОВЕРКА: Можно ли отправлять сообщения?
     if (!_isMutual) {
       LoggerService.log('ChatScreen: ❌ Cannot send - not mutual contacts');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('⚠️ Невозможно отправить сообщение\n\nВы не обменялись инвайтами с этим контактом.\nДождитесь пока собеседник добавит вас в контакты.'),
-          backgroundColor: Colors.orange,
-          duration: const Duration(seconds: 5),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      // ✅ НЕ показываем уведомление - кнопка заблокирована
       return;
     }
     
@@ -375,7 +394,7 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Chat(
               chatController: _chatController,
               currentUserId: widget.chatService.email,
-              onMessageSend: _handleSendPressed,
+              onMessageSend: _isMutual ? _handleSendPressed : null, // ✅ Блокируем если не взаимные
               onMessageLongPress: _handleMessageLongPress,
               resolveUser: (userId) async {
                 return User(

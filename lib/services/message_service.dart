@@ -24,6 +24,9 @@ class MessageService {
   // Callback для автоматической отправки ответного инвайта
   Function(String contactEmail, String contactPubKey)? _sendInviteCallback;
   
+  // ✅ Флаг для защиты от параллельных вызовов sendReadReceipts
+  final Map<String, bool> _sendingReadReceipts = {};
+  
   MessageService({
     required this.accountEmail,
     required this.keyPair,
@@ -427,30 +430,45 @@ class MessageService {
   }
   
   Future<void> _handleReadReceipt(Map<String, dynamic> receipt, String from) async {
-    // RFC 3798 MDN формат: Original-Message-ID
-    final originalMessageId = receipt['original_message_id'] as String?;
+    // ✅ Поддержка батчинга: message_ids (массив) или original_message_id (одиночный)
+    final messageIds = receipt['message_ids'] as List<dynamic>?;
+    final singleMessageId = receipt['original_message_id'] as String?;
     
-    if (originalMessageId == null || originalMessageId.isEmpty) {
-      LoggerService.log('📖 ⚠️ Read receipt without original_message_id, skipping');
+    List<String> idsToProcess = [];
+    
+    if (messageIds != null && messageIds.isNotEmpty) {
+      // Батчинг: массив Message-IDs
+      idsToProcess = messageIds.map((id) => id.toString()).toList();
+      LoggerService.log('📖 Batched read receipt for ${idsToProcess.length} messages from=$from');
+    } else if (singleMessageId != null && singleMessageId.isNotEmpty) {
+      // Старый формат: одиночный Message-ID
+      idsToProcess = [singleMessageId];
+      LoggerService.log('📖 Read receipt for message_id=$singleMessageId from=$from');
+    } else {
+      LoggerService.log('📖 ⚠️ Read receipt without message_ids or original_message_id, skipping');
       return;
     }
     
-    LoggerService.log('📖 Read receipt for message_id=$originalMessageId from=$from');
+    // Обновляем статус для всех Message-IDs
+    final updatedIds = <String>[];
+    for (final messageId in idsToProcess) {
+      final success = await StorageService.updateMessageStatus(
+        accountEmail, 
+        messageId, 
+        'read'
+      );
+      
+      if (success) {
+        updatedIds.add(messageId);
+        LoggerService.log('📖 ✅ Message $messageId marked as READ');
+      } else {
+        LoggerService.log('📖 ⚠️ Message $messageId not found in DB');
+      }
+    }
     
-    // Обновляем статус по message_id
-    final success = await StorageService.updateMessageStatus(
-      accountEmail, 
-      originalMessageId, 
-      'read'
-    );
-    
-    if (success) {
-      LoggerService.log('📖 ✅ Message $originalMessageId marked as READ');
-      // ✅ Уведомляем UI об обновлении статуса (БЕЗ перезагрузки!)
-      // Status callback обновит сообщение в памяти, анимация не проиграется
-      _notifyStatusUpdate([originalMessageId], 'read');
-    } else {
-      LoggerService.log('📖 ⚠️ Message $originalMessageId not found in DB');
+    // ✅ Уведомляем UI об обновлении статуса (БЕЗ перезагрузки!)
+    if (updatedIds.isNotEmpty) {
+      _notifyStatusUpdate(updatedIds, 'read');
     }
   }
   
@@ -459,36 +477,51 @@ class MessageService {
     required String contactEmail,
     required Function(String toEmail, Map<String, String> encrypted) sendMessageCallback,
   }) async {
-    LoggerService.log('📖 MessageService: Checking for unread messages from $contactEmail');
-    
-    // ✅ Загружаем ТОЛЬКО сообщения для которых НЕ отправлен read receipt
-    final unread = await StorageService.getUnreadMessagesForReceipt(accountEmail, contactEmail);
-    
-    if (unread.isEmpty) {
-      LoggerService.log('📖 No unread messages to send receipts for');
+    // ✅ Защита от параллельных вызовов (race condition)
+    if (_sendingReadReceipts[contactEmail] == true) {
+      LoggerService.log('📖 Already sending read receipts for $contactEmail, skipping');
       return;
     }
     
-    LoggerService.log('📖 Found ${unread.length} unread messages (receipt not sent), sending read receipts...');
+    _sendingReadReceipts[contactEmail] = true;
     
-    // Отправляем read receipt для каждого сообщения
-    int sent = 0;
-    for (final msg in unread) {
-      final messageId = msg['message_id'] as String;
+    try {
+      LoggerService.log('📖 MessageService: Checking for unread messages from $contactEmail');
+      
+      // ✅ Загружаем ТОЛЬКО сообщения для которых НЕ отправлен read receipt
+      final unread = await StorageService.getUnreadMessagesForReceipt(accountEmail, contactEmail);
+      
+      if (unread.isEmpty) {
+        LoggerService.log('📖 No unread messages to send receipts for');
+        return;
+      }
+      
+      LoggerService.log('📖 Found ${unread.length} unread messages (receipt not sent), sending read receipts...');
+      
+      // ✅ БАТЧИНГ: Собираем все Message-IDs в один массив
+      final messageIds = unread.map((m) => m['message_id'] as String).toList();
+      
+      // ✅ КРИТИЧЕСКИ ВАЖНО: Помечаем СРАЗУ (защита от race condition)
+      // Если пометить ПОСЛЕ отправки → за время SMTP (~1 сек) придут callbacks
+      // и они увидят старые данные → отправят дубликаты!
+      for (final messageId in messageIds) {
+        await StorageService.markReadReceiptSent(accountEmail, messageId);
+      }
+      LoggerService.log('📖 ✅ Marked ${messageIds.length} messages as read_receipt_sent (before sending)');
       
       try {
-        // RFC 3798 MDN формат (упрощённый)
+        // RFC 3798 MDN формат с батчингом (как в Delta Chat)
         final receipt = jsonEncode({
           'type': 'read_receipt',
-          'original_message_id': messageId,
-          'disposition': 'displayed', // RFC 3798: displayed, processed, deleted, etc.
+          'message_ids': messageIds, // ✅ Массив Message-IDs
+          'disposition': 'displayed',
         });
         
         // Шифруем и отправляем через callback
         final contact = await StorageService.getContact(accountEmail, contactEmail);
         if (contact == null) {
           LoggerService.log('📖 ⚠️ Contact $contactEmail not found, skipping');
-          continue;
+          return;
         }
         
         final contactPubKeyHex = contact['publicKey'] as String;
@@ -502,18 +535,17 @@ class MessageService {
         // Отправляем через callback (ChatService.sendMessage)
         await sendMessageCallback(contactEmail, encrypted);
         
-        // ✅ ВАЖНО: Помечаем что read receipt отправлен (защита от дублирования)
-        await StorageService.markReadReceiptSent(accountEmail, messageId);
-        sent++;
-        
-        LoggerService.log('📖 ✅ Read receipt sent for message_id=$messageId');
+        LoggerService.log('📖 ✅ Sent batched read receipt for ${messageIds.length} messages');
       } catch (e) {
-        LoggerService.log('📖 ❌ Failed to send read receipt for $messageId: $e');
-        // НЕ помечаем как отправленный - попробуем снова при следующем вызове
+        LoggerService.log('📖 ❌ Failed to send batched read receipt: $e');
+        // ⚠️ Флаги УЖЕ установлены (перед отправкой)
+        // Если ошибка → пользователь увидит что сообщения прочитаны (локально)
+        // но получатель не получит уведомление (это OK, не критично)
       }
+    } finally {
+      // ✅ Снимаем флаг в любом случае (даже если ошибка)
+      _sendingReadReceipts[contactEmail] = false;
     }
-    
-    LoggerService.log('📖 ✅ Sent $sent/${unread.length} read receipts');
   }
   
   /// Уведомление UI об обновлении статуса сообщений

@@ -51,9 +51,15 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
       
       final sentCount = messages.where((m) => m['sent'] == 1 || m['sent'] == true).length;
       final receivedCount = messages.length - sentCount;
+      
+      // ✅ Первое и последнее сообщение
       final firstMessageTime = messages.isEmpty 
         ? null 
-        : DateTime.fromMillisecondsSinceEpoch(messages.first['timestamp']);
+        : DateTime.fromMillisecondsSinceEpoch(messages.last['timestamp']); // last = самое старое
+      
+      final lastMessageTime = messages.isEmpty
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(messages.first['timestamp']); // first = самое новое
       
       if (mounted) {
         setState(() {
@@ -64,6 +70,7 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
             'sent': sentCount,
             'received': receivedCount,
             'firstMessage': firstMessageTime,
+            'lastMessage': lastMessageTime,
           };
           _isLoading = false;
         });
@@ -257,6 +264,16 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
                       title: 'Первое сообщение',
                       value: _formatDate(_stats!['firstMessage']),
                     ),
+                  
+                  // Последнее сообщение
+                  if (_stats!['lastMessage'] != null) ...[
+                    const SizedBox(height: 16),
+                    _buildInfoCard(
+                      icon: Icons.access_time,
+                      title: 'Последнее сообщение',
+                      value: _formatDate(_stats!['lastMessage']),
+                    ),
+                  ],
                 ],
               ],
             ),

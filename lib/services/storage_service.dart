@@ -371,6 +371,13 @@ class StorageService {
       orderBy: 'timestamp ASC',
     );
 
+    LoggerService.log('StorageService: getUnreadMessagesForReceipt found ${results.length} messages');
+    if (results.isNotEmpty) {
+      for (final r in results) {
+        LoggerService.log('  - Message-ID: ${r['message_id']}, read_receipt_sent: ${r['read_receipt_sent']}');
+      }
+    }
+
     return results
         .map((r) => {
               'message_id': r['message_id'],
@@ -385,12 +392,19 @@ class StorageService {
     String accountEmail,
     String messageId,
   ) async {
-    await _database!.update(
+    // ✅ ВАЖНО: Обновляем ОБА поля!
+    // - read_receipt_sent: защита от повторной отправки read receipt
+    // - read_sent: для счётчика непрочитанных в ChatListScreen
+    final count = await _database!.update(
       'messages',
-      {'read_receipt_sent': 1},
+      {
+        'read_receipt_sent': 1,
+        'read_sent': 1,  // ✅ Для счётчика непрочитанных!
+      },
       where: 'account_email = ? AND message_id = ?',
       whereArgs: [accountEmail, messageId],
     );
+    LoggerService.log('StorageService: Marked read_receipt_sent for $messageId (updated: $count rows)');
   }
 
   /// Удаление дубликатов сообщений (теперь автоматически через REPLACE)
