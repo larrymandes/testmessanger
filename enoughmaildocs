@@ -1,0 +1,2799 @@
+
+enough_mail packagedocumentationcodecs.dart
+Search API Docs
+
+light_mode
+codecs library
+Email codec classes
+
+Classes
+AttachmentInfo
+Information about a file that is attached
+Base64MailCodec
+Provides base64 encoder and decoder.
+BinaryMimeData
+Represents binary mime data
+BodyPart
+A BODY or BODYSTRUCTURE information element
+ContentDispositionHeader
+Specifies the content disposition header of a mime part. Compare https://tools.ietf.org/html/rfc2183 for details.
+ContentInfo
+Provides high level information about content parts.
+ContentTypeHeader
+Eases reading content-type header values
+DateCodec
+Encodes and decodes dates according to MIME requirements.
+Envelope
+Contains the envelope information about a message.
+Header
+Encapsulates a MIME header
+MailAddress
+An email address can consist of separate fields
+MailCodec
+Encodes and decodes base-64 and quoted printable encoded texts
+MailConventions
+Contains various mail specific conventions
+MediaType
+Describes the media type of a MIME message part
+MessageBuilder
+Simplifies creating mime messages for sending or storing.
+MessageFlags
+Contains common message flags
+MessageSequence
+Defines a list of message IDs.
+MimeData
+Abstracts textual or binary mime data
+MimeMessage
+A MIME message
+MimePart
+A MIME part In a simple case a MIME message only has one MIME part.
+MimeThread
+Abstract a mime message thread
+PagedMessageSequence
+A paginated list of message IDs
+ParameterizedHeader
+A parameter that may contain additional parameters
+PartBuilder
+Allows to configure a mime part
+QuotedPrintableMailCodec
+Provides quoted printable encoder and decoder.
+SequenceNode
+A message sequence to handle nested IDs like in the IMAP THREAD extension.
+TextMimeData
+Represents textual mime data
+Enums
+CharacterSet
+The used character set
+ContentDisposition
+Specifies the content disposition of a mime part. Compare https://tools.ietf.org/html/rfc2183 for details.
+HeaderEncoding
+The used header encoding mechanism
+MediaSubtype
+Detailed media types Compare https://www.iana.org/assignments/media-types/media-types.xhtml
+MediaToptype
+Top level media types
+RecipientGroup
+The recipient
+SequenceNodeSelectionMode
+Selection mode for retrieving a MessageSequence from a nested SequenceNode structure.
+TransferEncoding
+The transfer-encoding used for encoding 8bit data if necessary
+Extensions
+MediaSubtypeExtension on MediaSubtype
+Extension on MediaSubtype
+SequenceExtension on List<MimeMessage>
+Allows to get a sequence for a list of MimeMessages easily
+Exceptions / Errors
+BaseMailException
+Base exception for any IMAP, POP, SMTP or highlevel API exceptions
+InvalidArgumentException
+Notifies about an invalid argument
+enough_mail package
+Libraries
+codecs
+discover
+enough_mail
+highlevel
+imap
+mime
+pop
+smtp
+codecs library
+Classes
+AttachmentInfo
+Base64MailCodec
+BinaryMimeData
+BodyPart
+ContentDispositionHeader
+ContentInfo
+ContentTypeHeader
+DateCodec
+Envelope
+Header
+MailAddress
+MailCodec
+MailConventions
+MediaType
+MessageBuilder
+MessageFlags
+MessageSequence
+MimeData
+MimeMessage
+MimePart
+MimeThread
+PagedMessageSequence
+ParameterizedHeader
+PartBuilder
+QuotedPrintableMailCodec
+SequenceNode
+TextMimeData
+Enums
+CharacterSet
+ContentDisposition
+HeaderEncoding
+MediaSubtype
+MediaToptype
+RecipientGroup
+SequenceNodeSelectionMode
+TransferEncoding
+Exceptions
+BaseMailException
+InvalidArgumentException
+Extensions
+MediaSubtypeExtension
+SequenceExtension
+enough_mail 2.1.7
+   
+1
+    
+enough_mail packagedocumentationdiscover.dart
+Search API Docs
+
+light_mode
+discover library
+Discovers email settings based on an email address.
+
+Classes
+ClientConfig
+Provides discovery information
+ConfigEmailProvider
+Contains configuration settings for a single email service
+Discover
+Helps discovering email connection settings based on an email address.
+ServerConfig
+The configuration for a single server
+Enums
+Authentication
+The type of authentication
+ServerType
+The type of the server
+SocketType
+The socket type
+UsernameType
+The user name configuration
+enough_mail package
+Libraries
+codecs
+discover
+enough_mail
+highlevel
+imap
+mime
+pop
+smtp
+discover library
+Classes
+ClientConfig
+ConfigEmailProvider
+Discover
+ServerConfig
+Enums
+Authentication
+ServerType
+SocketType
+UsernameType
+enough_mail 2.1.7
+   
+1
+    
+enough_mail packagedocumentationenough_mail.dart
+Search API Docs
+
+light_mode
+enough_mail library
+With enough_mail you can connect to any mail service via IMAP, POP3 and SMTP
+
+You can choose between a high-level API starting with MailClient and the low-level APIs ImapClient, PopClient and SmtpClient.
+
+Generate a new MimeMessage with MessageBuilder.
+
+Discover connection settings with Discover.
+
+Classes
+AttachmentInfo
+Information about a file that is attached
+Base64MailCodec
+Provides base64 encoder and decoder.
+BinaryMimeData
+Represents binary mime data
+BodyPart
+A BODY or BODYSTRUCTURE information element
+Capability
+Describes a capability
+ClientConfig
+Provides discovery information
+ConfigEmailProvider
+Contains configuration settings for a single email service
+ContentDispositionHeader
+Specifies the content disposition header of a mime part. Compare https://tools.ietf.org/html/rfc2183 for details.
+ContentInfo
+Provides high level information about content parts.
+ContentTypeHeader
+Eases reading content-type header values
+DateCodec
+Encodes and decodes dates according to MIME requirements.
+DeleteResult
+Provides information about a delete action
+Discover
+Helps discovering email connection settings based on an email address.
+Envelope
+Contains the envelope information about a message.
+FetchImapResult
+Result for FETCH operations
+GenericImapResult
+A generic result that provide details about the success or failure of the command.
+Header
+Encapsulates a MIME header
+Id
+Contains classes to support RFC 2971
+ImapClient
+Low-level IMAP library.
+ImapConnectionLostEvent
+Notifies about a connection lost
+ImapEvent
+Base class for any event that can be fired by the IMAP client at any time. Compare ImapClient.eventBus
+ImapExpungeEvent
+Notifies about a message that has been deleted
+ImapFetchEvent
+Notifies about a message that has changed its status / flags
+ImapMessagesExistEvent
+Notifies about new messages
+ImapMessagesRecentEvent
+Notifies about new messages
+ImapServerInfo
+Keeps information about the remote IMAP server
+ImapVanishedEvent
+Notifies about a sequence of messages that have been deleted. This event can only be triggered if the server is QRESYNC compliant and after the client has enabled QRESYNC.
+ImapWarning
+Warnings can often be ignored but provide more insights in case of problems They are given in untagged responses of the server.
+MailAccount
+Contains information about a single mail account
+MailAddress
+An email address can consist of separate fields
+MailAuthentication
+Contains an authentication for a mail service Compare PlainAuthentication and OauthAuthentication for implementations.
+Mailbox
+Stores meta data about a folder aka Mailbox
+MailClient
+Highlevel online API to access mail.
+MailCodec
+Encodes and decodes base-64 and quoted printable encoded texts
+MailConnectionLostEvent
+Notifies about a lost connection
+MailConnectionReEstablishedEvent
+Notifies about a connection that has been re-established
+MailConventions
+Contains various mail specific conventions
+MailEvent
+Base class for any event that can be fired by the MailClient at any time. Compare MailClient.eventBus
+MailLoadEvent
+Notifies about a message that has been deleted
+MailSearch
+Abstracts a typical mail search
+MailSearchResult
+Contains the result of a search
+MailServerConfig
+Configuration of a specific mail service like IMAP, POP3 or SMTP
+MailUpdateEvent
+Notifies about an mail flags update
+MailVanishedEvent
+Notifies about the removal of messages
+MediaType
+Describes the media type of a MIME message part
+MessageBuilder
+Simplifies creating mime messages for sending or storing.
+MessageFlags
+Contains common message flags
+MessageListing
+Basic information about a message
+MessageSequence
+Defines a list of message IDs.
+MessagesOperationResult
+Base class for operation results based on messages
+MetaDataEntries
+Contains meta data entries
+MetaDataEntry
+A meta data element
+MimeData
+Abstracts textual or binary mime data
+MimeMessage
+A MIME message
+MimePart
+A MIME part In a simple case a MIME message only has one MIME part.
+MimeThread
+Abstract a mime message thread
+MoveResult
+Result for move operations
+OauthAuthentication
+Provides an OAuth-compliant authentication
+OauthToken
+Contains an OAuth compliant token
+PagedMessageResult
+Base class for actions that result in a partial fetching of messages
+PagedMessageSequence
+A paginated list of message IDs
+ParameterizedHeader
+A parameter that may contain additional parameters
+PartBuilder
+Allows to configure a mime part
+PlainAuthentication
+Provides a simple username-password authentication
+PopClient
+Client to access POP3 compliant servers. Compare https://tools.ietf.org/html/rfc1939 for details.
+PopConnectionLostEvent
+Informs about a lost connection
+PopEvent
+Base event class
+PopResponse<T>
+Provides access to a POP response coming from the POP service
+PopServerInfo
+The server information
+PopStatus
+Provides status information about a POP service
+QResyncParameters
+Classes for implementing QRESYNC https://tools.ietf.org/html/rfc7162 QRESYNC parameters when doing a SELECT or EXAMINE.
+QuotaResult
+Result for QUOTA operations
+QuotaRootResult
+Result for QUOTAROOT operations
+QuotedPrintableMailCodec
+Provides quoted printable encoder and decoder.
+ResourceLimit
+QUOTA resource limit
+Response<T>
+Base class for command responses.
+ReturnOption
+Return option definition for extended commands.
+SearchImapResult
+Result for SEARCH and UID SEARCH operations
+SearchQueryBuilder
+Creates a new search query.
+SearchTerm
+Base class for all search terms
+SearchTermAll
+Searches all messages
+SearchTermAnswered
+Searches for answered/replied messages
+SearchTermBcc
+Searches for messages with a BCC recipient that matches
+SearchTermBefore
+Searches for messages stored before the given date.
+SearchTermBody
+Searches in the body of messages. This is usually a long lasting operation.
+SearchTermCc
+Searches for messages with a matching recipient on CC
+SearchTermCharsetUf8
+Set the charset to UTF8
+SearchTermDeleted
+Searches for deleted messages
+SearchTermDraft
+Searches for draft messages
+SearchTermFlagged
+Searches for flagged messages
+SearchTermFrom
+Searches for messages where the sender matches the senderPart
+SearchTermHeader
+Searches for messages with the given header
+SearchTermKeyword
+Searches for messages flagged with the given keyword
+SearchTermLarger
+Searches for messages that are bigger than the given size
+SearchTermNew
+Searches for new messages
+SearchTermNot
+Negates the given search term
+SearchTermOld
+Searches for old messages
+SearchTermOn
+Searches for message stored at the given day
+SearchTermOr
+Combines two atomic search terms in an OR way Note that you cannot nest an OR term into another OR term
+SearchTermRecent
+Searches for recent messages
+SearchTermSeen
+Searches for seen / read messages
+SearchTermSentBefore
+Searches for messages sent before the given date
+SearchTermSentOn
+Searches for message sent at the given day
+SearchTermSentSince
+Searches message sent after the given time
+SearchTermSince
+Searches for messages stored after the given time
+SearchTermSmaller
+Searches messages with a size less than given
+SearchTermSubject
+Searches for messages with a matching subject
+SearchTermText
+Searches any text header
+SearchTermTo
+Searches for recipients
+SearchTermUnanswered
+Searches messages without the replied flag
+SearchTermUndeleted
+Searches messages that are not deleted
+SearchTermUndraft
+Searches for messages that carry no draft flag
+SearchTermUnflagged
+Search for not flagged messages
+SearchTermUnkeyword
+Searches for messages without the keyword
+SearchTermUnseen
+Searches for unseen messages
+SequenceNode
+A message sequence to handle nested IDs like in the IMAP THREAD extension.
+ServerConfig
+The configuration for a single server
+SmtpClient
+Low-level SMTP library for Dart
+SmtpConnectionLostEvent
+Event signalling a lost connection
+SmtpEvent
+Base SMTP event
+SmtpResponse
+Contains a response from the SMTP server
+SmtpResponseLine
+Contains a single SMTP response line
+SmtpServerInfo
+Keeps information about the remote SMTP server
+SortImapResult
+Result for SORT and UID SORT operations
+StoreImapResult
+Result for STORE and UID STORE operations
+TextMimeData
+Represents textual mime data
+ThreadDataResult
+Contains information about threads
+ThreadResult
+Encapsulates a thread result
+Tree<T>
+Contains a tree like structure
+TreeElement<T>
+An Element in a Tree
+UidResponseCode
+Contains a UID response code
+UidSearchTerm
+Searches for the given UID messages
+UserNameBasedAuthentication
+Base class for authentications with user-names
+Enums
+Authentication
+The type of authentication
+AuthMechanism
+Defines the available authentication mechanism
+CharacterSet
+The used character set
+ContentDisposition
+Specifies the content disposition of a mime part. Compare https://tools.ietf.org/html/rfc2183 for details.
+DeleteAction
+The internal action that was used for deletion. This is useful for undoing and delete operation.
+FetchPreference
+The client's preference when fetching messages
+HeaderEncoding
+The used header encoding mechanism
+ImapEventType
+Classification of IMAP events
+MailboxFlag
+Contains common flags for mailboxes
+MailEventType
+Classification of Mail events
+MediaSubtype
+Detailed media types Compare https://www.iana.org/assignments/media-types/media-types.xhtml
+MediaToptype
+Top level media types
+MetaDataDepth
+The depth of a meta data request
+MoveAction
+Possible move implementations
+PopEventType
+Common POP event types
+RecipientGroup
+The recipient
+ResponseStatus
+Status for command responses.
+SearchMessageType
+Defines what kind of messages should be searched
+SearchQueryType
+Which part of the message should be searched
+SelectionOptions
+LIST-EXTENDED selection options
+SequenceNodeSelectionMode
+Selection mode for retrieving a MessageSequence from a nested SequenceNode structure.
+ServerType
+The type of the server
+SmtpEventType
+Types of SMTP events
+SmtpResponseType
+Basic type of a SMTP response
+SocketType
+The socket type
+StatusFlags
+Options for querying status updates
+StoreAction
+Possible flag store actions
+ThreadPreference
+Defines the thread fetching preference
+TransferEncoding
+The transfer-encoding used for encoding 8bit data if necessary
+UsernameType
+The user name configuration
+Extensions
+MediaSubtypeExtension on MediaSubtype
+Extension on MediaSubtype
+SequenceExtension on List<MimeMessage>
+Allows to get a sequence for a list of MimeMessages easily
+Stringify on SelectionOptions
+Extension on SelectionOptions
+Typedefs
+MailEventFilter = bool Function(MailEvent event)
+Definition for optional event filters, compare MailClient.addEventFilter.
+Exceptions / Errors
+BaseMailException
+Base exception for any IMAP, POP, SMTP or highlevel API exceptions
+ImapException
+Provides information about an exception
+InvalidArgumentException
+Notifies about an invalid argument
+MailException
+Provides details about high level unexpected events
+PopException
+Informs about an exceptional case when dealing with a POP service
+SmtpException
+Contains details about SMTP problems
+enough_mail package
+Libraries
+codecs
+discover
+enough_mail
+highlevel
+imap
+mime
+pop
+smtp
+enough_mail library
+Classes
+AttachmentInfo
+Base64MailCodec
+BinaryMimeData
+BodyPart
+Capability
+ClientConfig
+ConfigEmailProvider
+ContentDispositionHeader
+ContentInfo
+ContentTypeHeader
+DateCodec
+DeleteResult
+Discover
+Envelope
+FetchImapResult
+GenericImapResult
+Header
+Id
+ImapClient
+ImapConnectionLostEvent
+ImapEvent
+ImapExpungeEvent
+ImapFetchEvent
+ImapMessagesExistEvent
+ImapMessagesRecentEvent
+ImapServerInfo
+ImapVanishedEvent
+ImapWarning
+MailAccount
+MailAddress
+MailAuthentication
+Mailbox
+MailClient
+MailCodec
+MailConnectionLostEvent
+MailConnectionReEstablishedEvent
+MailConventions
+MailEvent
+MailLoadEvent
+MailSearch
+MailSearchResult
+MailServerConfig
+MailUpdateEvent
+MailVanishedEvent
+MediaType
+MessageBuilder
+MessageFlags
+MessageListing
+MessageSequence
+MessagesOperationResult
+MetaDataEntries
+MetaDataEntry
+MimeData
+MimeMessage
+MimePart
+MimeThread
+MoveResult
+OauthAuthentication
+OauthToken
+PagedMessageResult
+PagedMessageSequence
+ParameterizedHeader
+PartBuilder
+PlainAuthentication
+PopClient
+PopConnectionLostEvent
+PopEvent
+PopResponse
+PopServerInfo
+PopStatus
+QResyncParameters
+QuotaResult
+QuotaRootResult
+QuotedPrintableMailCodec
+ResourceLimit
+Response
+ReturnOption
+SearchImapResult
+SearchQueryBuilder
+SearchTerm
+SearchTermAll
+SearchTermAnswered
+SearchTermBcc
+SearchTermBefore
+SearchTermBody
+SearchTermCc
+SearchTermCharsetUf8
+SearchTermDeleted
+SearchTermDraft
+SearchTermFlagged
+SearchTermFrom
+SearchTermHeader
+SearchTermKeyword
+SearchTermLarger
+SearchTermNew
+SearchTermNot
+SearchTermOld
+SearchTermOn
+SearchTermOr
+SearchTermRecent
+SearchTermSeen
+SearchTermSentBefore
+SearchTermSentOn
+SearchTermSentSince
+SearchTermSince
+SearchTermSmaller
+SearchTermSubject
+SearchTermText
+SearchTermTo
+SearchTermUnanswered
+SearchTermUndeleted
+SearchTermUndraft
+SearchTermUnflagged
+SearchTermUnkeyword
+SearchTermUnseen
+SequenceNode
+ServerConfig
+SmtpClient
+SmtpConnectionLostEvent
+SmtpEvent
+SmtpResponse
+SmtpResponseLine
+SmtpServerInfo
+SortImapResult
+StoreImapResult
+TextMimeData
+ThreadDataResult
+ThreadResult
+Tree
+TreeElement
+UidResponseCode
+UidSearchTerm
+UserNameBasedAuthentication
+Enums
+Authentication
+AuthMechanism
+CharacterSet
+ContentDisposition
+DeleteAction
+FetchPreference
+HeaderEncoding
+ImapEventType
+MailboxFlag
+MailEventType
+MediaSubtype
+MediaToptype
+MetaDataDepth
+MoveAction
+PopEventType
+RecipientGroup
+ResponseStatus
+SearchMessageType
+SearchQueryType
+SelectionOptions
+SequenceNodeSelectionMode
+ServerType
+SmtpEventType
+SmtpResponseType
+SocketType
+StatusFlags
+StoreAction
+ThreadPreference
+TransferEncoding
+UsernameType
+Typedefs
+MailEventFilter
+Exceptions
+BaseMailException
+ImapException
+InvalidArgumentException
+MailException
+PopException
+SmtpException
+Extensions
+MediaSubtypeExtension
+SequenceExtension
+Stringify
+enough_mail 2.1.7
+   
+1
+    
+enough_mail packagedocumentationhighlevel.dart
+Search API Docs
+
+light_mode
+highlevel library
+Highlevel email API
+
+Start with MailClient to connect to any mail service.
+
+Classes
+AttachmentInfo
+Information about a file that is attached
+BinaryMimeData
+Represents binary mime data
+BodyPart
+A BODY or BODYSTRUCTURE information element
+ContentDispositionHeader
+Specifies the content disposition header of a mime part. Compare https://tools.ietf.org/html/rfc2183 for details.
+ContentInfo
+Provides high level information about content parts.
+ContentTypeHeader
+Eases reading content-type header values
+DeleteResult
+Provides information about a delete action
+Envelope
+Contains the envelope information about a message.
+FetchImapResult
+Result for FETCH operations
+GenericImapResult
+A generic result that provide details about the success or failure of the command.
+Header
+Encapsulates a MIME header
+ImapWarning
+Warnings can often be ignored but provide more insights in case of problems They are given in untagged responses of the server.
+MailAccount
+Contains information about a single mail account
+MailAddress
+An email address can consist of separate fields
+MailAuthentication
+Contains an authentication for a mail service Compare PlainAuthentication and OauthAuthentication for implementations.
+Mailbox
+Stores meta data about a folder aka Mailbox
+MailClient
+Highlevel online API to access mail.
+MailConnectionLostEvent
+Notifies about a lost connection
+MailConnectionReEstablishedEvent
+Notifies about a connection that has been re-established
+MailConventions
+Contains various mail specific conventions
+MailEvent
+Base class for any event that can be fired by the MailClient at any time. Compare MailClient.eventBus
+MailLoadEvent
+Notifies about a message that has been deleted
+MailSearch
+Abstracts a typical mail search
+MailSearchResult
+Contains the result of a search
+MailServerConfig
+Configuration of a specific mail service like IMAP, POP3 or SMTP
+MailUpdateEvent
+Notifies about an mail flags update
+MailVanishedEvent
+Notifies about the removal of messages
+MediaType
+Describes the media type of a MIME message part
+MessageBuilder
+Simplifies creating mime messages for sending or storing.
+MessageFlags
+Contains common message flags
+MessageSequence
+Defines a list of message IDs.
+MessagesOperationResult
+Base class for operation results based on messages
+MimeData
+Abstracts textual or binary mime data
+MimeMessage
+A MIME message
+MimePart
+A MIME part In a simple case a MIME message only has one MIME part.
+MimeThread
+Abstract a mime message thread
+MoveResult
+Result for move operations
+OauthAuthentication
+Provides an OAuth-compliant authentication
+OauthToken
+Contains an OAuth compliant token
+PagedMessageResult
+Base class for actions that result in a partial fetching of messages
+PagedMessageSequence
+A paginated list of message IDs
+ParameterizedHeader
+A parameter that may contain additional parameters
+PartBuilder
+Allows to configure a mime part
+PlainAuthentication
+Provides a simple username-password authentication
+QResyncParameters
+Classes for implementing QRESYNC https://tools.ietf.org/html/rfc7162 QRESYNC parameters when doing a SELECT or EXAMINE.
+QuotaResult
+Result for QUOTA operations
+QuotaRootResult
+Result for QUOTAROOT operations
+Response<T>
+Base class for command responses.
+SearchImapResult
+Result for SEARCH and UID SEARCH operations
+SearchQueryBuilder
+Creates a new search query.
+SearchTerm
+Base class for all search terms
+SearchTermAll
+Searches all messages
+SearchTermAnswered
+Searches for answered/replied messages
+SearchTermBcc
+Searches for messages with a BCC recipient that matches
+SearchTermBefore
+Searches for messages stored before the given date.
+SearchTermBody
+Searches in the body of messages. This is usually a long lasting operation.
+SearchTermCc
+Searches for messages with a matching recipient on CC
+SearchTermCharsetUf8
+Set the charset to UTF8
+SearchTermDeleted
+Searches for deleted messages
+SearchTermDraft
+Searches for draft messages
+SearchTermFlagged
+Searches for flagged messages
+SearchTermFrom
+Searches for messages where the sender matches the senderPart
+SearchTermHeader
+Searches for messages with the given header
+SearchTermKeyword
+Searches for messages flagged with the given keyword
+SearchTermLarger
+Searches for messages that are bigger than the given size
+SearchTermNew
+Searches for new messages
+SearchTermNot
+Negates the given search term
+SearchTermOld
+Searches for old messages
+SearchTermOn
+Searches for message stored at the given day
+SearchTermOr
+Combines two atomic search terms in an OR way Note that you cannot nest an OR term into another OR term
+SearchTermRecent
+Searches for recent messages
+SearchTermSeen
+Searches for seen / read messages
+SearchTermSentBefore
+Searches for messages sent before the given date
+SearchTermSentOn
+Searches for message sent at the given day
+SearchTermSentSince
+Searches message sent after the given time
+SearchTermSince
+Searches for messages stored after the given time
+SearchTermSmaller
+Searches messages with a size less than given
+SearchTermSubject
+Searches for messages with a matching subject
+SearchTermText
+Searches any text header
+SearchTermTo
+Searches for recipients
+SearchTermUnanswered
+Searches messages without the replied flag
+SearchTermUndeleted
+Searches messages that are not deleted
+SearchTermUndraft
+Searches for messages that carry no draft flag
+SearchTermUnflagged
+Search for not flagged messages
+SearchTermUnkeyword
+Searches for messages without the keyword
+SearchTermUnseen
+Searches for unseen messages
+SequenceNode
+A message sequence to handle nested IDs like in the IMAP THREAD extension.
+SortImapResult
+Result for SORT and UID SORT operations
+StoreImapResult
+Result for STORE and UID STORE operations
+TextMimeData
+Represents textual mime data
+ThreadDataResult
+Contains information about threads
+ThreadResult
+Encapsulates a thread result
+Tree<T>
+Contains a tree like structure
+TreeElement<T>
+An Element in a Tree
+UidResponseCode
+Contains a UID response code
+UidSearchTerm
+Searches for the given UID messages
+UserNameBasedAuthentication
+Base class for authentications with user-names
+Enums
+CharacterSet
+The used character set
+ContentDisposition
+Specifies the content disposition of a mime part. Compare https://tools.ietf.org/html/rfc2183 for details.
+DeleteAction
+The internal action that was used for deletion. This is useful for undoing and delete operation.
+FetchPreference
+The client's preference when fetching messages
+MailboxFlag
+Contains common flags for mailboxes
+MailEventType
+Classification of Mail events
+MediaSubtype
+Detailed media types Compare https://www.iana.org/assignments/media-types/media-types.xhtml
+MediaToptype
+Top level media types
+MoveAction
+Possible move implementations
+RecipientGroup
+The recipient
+ResponseStatus
+Status for command responses.
+SearchMessageType
+Defines what kind of messages should be searched
+SearchQueryType
+Which part of the message should be searched
+SequenceNodeSelectionMode
+Selection mode for retrieving a MessageSequence from a nested SequenceNode structure.
+ThreadPreference
+Defines the thread fetching preference
+TransferEncoding
+The transfer-encoding used for encoding 8bit data if necessary
+Extensions
+MediaSubtypeExtension on MediaSubtype
+Extension on MediaSubtype
+SequenceExtension on List<MimeMessage>
+Allows to get a sequence for a list of MimeMessages easily
+Typedefs
+MailEventFilter = bool Function(MailEvent event)
+Definition for optional event filters, compare MailClient.addEventFilter.
+Exceptions / Errors
+BaseMailException
+Base exception for any IMAP, POP, SMTP or highlevel API exceptions
+InvalidArgumentException
+Notifies about an invalid argument
+MailException
+Provides details about high level unexpected events
+enough_mail package
+Libraries
+codecs
+discover
+enough_mail
+highlevel
+imap
+mime
+pop
+smtp
+highlevel library
+Classes
+AttachmentInfo
+BinaryMimeData
+BodyPart
+ContentDispositionHeader
+ContentInfo
+ContentTypeHeader
+DeleteResult
+Envelope
+FetchImapResult
+GenericImapResult
+Header
+ImapWarning
+MailAccount
+MailAddress
+MailAuthentication
+Mailbox
+MailClient
+MailConnectionLostEvent
+MailConnectionReEstablishedEvent
+MailConventions
+MailEvent
+MailLoadEvent
+MailSearch
+MailSearchResult
+MailServerConfig
+MailUpdateEvent
+MailVanishedEvent
+MediaType
+MessageBuilder
+MessageFlags
+MessageSequence
+MessagesOperationResult
+MimeData
+MimeMessage
+MimePart
+MimeThread
+MoveResult
+OauthAuthentication
+OauthToken
+PagedMessageResult
+PagedMessageSequence
+ParameterizedHeader
+PartBuilder
+PlainAuthentication
+QResyncParameters
+QuotaResult
+QuotaRootResult
+Response
+SearchImapResult
+SearchQueryBuilder
+SearchTerm
+SearchTermAll
+SearchTermAnswered
+SearchTermBcc
+SearchTermBefore
+SearchTermBody
+SearchTermCc
+SearchTermCharsetUf8
+SearchTermDeleted
+SearchTermDraft
+SearchTermFlagged
+SearchTermFrom
+SearchTermHeader
+SearchTermKeyword
+SearchTermLarger
+SearchTermNew
+SearchTermNot
+SearchTermOld
+SearchTermOn
+SearchTermOr
+SearchTermRecent
+SearchTermSeen
+SearchTermSentBefore
+SearchTermSentOn
+SearchTermSentSince
+SearchTermSince
+SearchTermSmaller
+SearchTermSubject
+SearchTermText
+SearchTermTo
+SearchTermUnanswered
+SearchTermUndeleted
+SearchTermUndraft
+SearchTermUnflagged
+SearchTermUnkeyword
+SearchTermUnseen
+SequenceNode
+SortImapResult
+StoreImapResult
+TextMimeData
+ThreadDataResult
+ThreadResult
+Tree
+TreeElement
+UidResponseCode
+UidSearchTerm
+UserNameBasedAuthentication
+Enums
+CharacterSet
+ContentDisposition
+DeleteAction
+FetchPreference
+MailboxFlag
+MailEventType
+MediaSubtype
+MediaToptype
+MoveAction
+RecipientGroup
+ResponseStatus
+SearchMessageType
+SearchQueryType
+SequenceNodeSelectionMode
+ThreadPreference
+TransferEncoding
+Typedefs
+MailEventFilter
+Exceptions
+BaseMailException
+InvalidArgumentException
+MailException
+Extensions
+MediaSubtypeExtension
+SequenceExtension
+enough_mail 2.1.7
+
+
+enough_mail packagedocumentationimap.dart
+Search API Docs
+
+light_mode
+imap library
+Anything you need to fetch and process messages using the IMAP protocol.
+
+Use the ImapClient to connect to any IMAP compliant service.
+
+Classes
+AttachmentInfo
+Information about a file that is attached
+BinaryMimeData
+Represents binary mime data
+BodyPart
+A BODY or BODYSTRUCTURE information element
+Capability
+Describes a capability
+ContentDispositionHeader
+Specifies the content disposition header of a mime part. Compare https://tools.ietf.org/html/rfc2183 for details.
+ContentInfo
+Provides high level information about content parts.
+ContentTypeHeader
+Eases reading content-type header values
+Envelope
+Contains the envelope information about a message.
+FetchImapResult
+Result for FETCH operations
+GenericImapResult
+A generic result that provide details about the success or failure of the command.
+Header
+Encapsulates a MIME header
+Id
+Contains classes to support RFC 2971
+ImapClient
+Low-level IMAP library.
+ImapConnectionLostEvent
+Notifies about a connection lost
+ImapEvent
+Base class for any event that can be fired by the IMAP client at any time. Compare ImapClient.eventBus
+ImapExpungeEvent
+Notifies about a message that has been deleted
+ImapFetchEvent
+Notifies about a message that has changed its status / flags
+ImapMessagesExistEvent
+Notifies about new messages
+ImapMessagesRecentEvent
+Notifies about new messages
+ImapServerInfo
+Keeps information about the remote IMAP server
+ImapVanishedEvent
+Notifies about a sequence of messages that have been deleted. This event can only be triggered if the server is QRESYNC compliant and after the client has enabled QRESYNC.
+ImapWarning
+Warnings can often be ignored but provide more insights in case of problems They are given in untagged responses of the server.
+MailAddress
+An email address can consist of separate fields
+Mailbox
+Stores meta data about a folder aka Mailbox
+MailConventions
+Contains various mail specific conventions
+MediaType
+Describes the media type of a MIME message part
+MessageBuilder
+Simplifies creating mime messages for sending or storing.
+MessageFlags
+Contains common message flags
+MessageSequence
+Defines a list of message IDs.
+MetaDataEntries
+Contains meta data entries
+MetaDataEntry
+A meta data element
+MimeData
+Abstracts textual or binary mime data
+MimeMessage
+A MIME message
+MimePart
+A MIME part In a simple case a MIME message only has one MIME part.
+MimeThread
+Abstract a mime message thread
+PagedMessageSequence
+A paginated list of message IDs
+ParameterizedHeader
+A parameter that may contain additional parameters
+PartBuilder
+Allows to configure a mime part
+QResyncParameters
+Classes for implementing QRESYNC https://tools.ietf.org/html/rfc7162 QRESYNC parameters when doing a SELECT or EXAMINE.
+QuotaResult
+Result for QUOTA operations
+QuotaRootResult
+Result for QUOTAROOT operations
+ResourceLimit
+QUOTA resource limit
+Response<T>
+Base class for command responses.
+ReturnOption
+Return option definition for extended commands.
+SearchImapResult
+Result for SEARCH and UID SEARCH operations
+SearchQueryBuilder
+Creates a new search query.
+SearchTerm
+Base class for all search terms
+SearchTermAll
+Searches all messages
+SearchTermAnswered
+Searches for answered/replied messages
+SearchTermBcc
+Searches for messages with a BCC recipient that matches
+SearchTermBefore
+Searches for messages stored before the given date.
+SearchTermBody
+Searches in the body of messages. This is usually a long lasting operation.
+SearchTermCc
+Searches for messages with a matching recipient on CC
+SearchTermCharsetUf8
+Set the charset to UTF8
+SearchTermDeleted
+Searches for deleted messages
+SearchTermDraft
+Searches for draft messages
+SearchTermFlagged
+Searches for flagged messages
+SearchTermFrom
+Searches for messages where the sender matches the senderPart
+SearchTermHeader
+Searches for messages with the given header
+SearchTermKeyword
+Searches for messages flagged with the given keyword
+SearchTermLarger
+Searches for messages that are bigger than the given size
+SearchTermNew
+Searches for new messages
+SearchTermNot
+Negates the given search term
+SearchTermOld
+Searches for old messages
+SearchTermOn
+Searches for message stored at the given day
+SearchTermOr
+Combines two atomic search terms in an OR way Note that you cannot nest an OR term into another OR term
+SearchTermRecent
+Searches for recent messages
+SearchTermSeen
+Searches for seen / read messages
+SearchTermSentBefore
+Searches for messages sent before the given date
+SearchTermSentOn
+Searches for message sent at the given day
+SearchTermSentSince
+Searches message sent after the given time
+SearchTermSince
+Searches for messages stored after the given time
+SearchTermSmaller
+Searches messages with a size less than given
+SearchTermSubject
+Searches for messages with a matching subject
+SearchTermText
+Searches any text header
+SearchTermTo
+Searches for recipients
+SearchTermUnanswered
+Searches messages without the replied flag
+SearchTermUndeleted
+Searches messages that are not deleted
+SearchTermUndraft
+Searches for messages that carry no draft flag
+SearchTermUnflagged
+Search for not flagged messages
+SearchTermUnkeyword
+Searches for messages without the keyword
+SearchTermUnseen
+Searches for unseen messages
+SequenceNode
+A message sequence to handle nested IDs like in the IMAP THREAD extension.
+SortImapResult
+Result for SORT and UID SORT operations
+StoreImapResult
+Result for STORE and UID STORE operations
+TextMimeData
+Represents textual mime data
+UidResponseCode
+Contains a UID response code
+UidSearchTerm
+Searches for the given UID messages
+Enums
+CharacterSet
+The used character set
+ContentDisposition
+Specifies the content disposition of a mime part. Compare https://tools.ietf.org/html/rfc2183 for details.
+ImapEventType
+Classification of IMAP events
+MailboxFlag
+Contains common flags for mailboxes
+MediaSubtype
+Detailed media types Compare https://www.iana.org/assignments/media-types/media-types.xhtml
+MediaToptype
+Top level media types
+MetaDataDepth
+The depth of a meta data request
+RecipientGroup
+The recipient
+ResponseStatus
+Status for command responses.
+SearchMessageType
+Defines what kind of messages should be searched
+SearchQueryType
+Which part of the message should be searched
+SelectionOptions
+LIST-EXTENDED selection options
+SequenceNodeSelectionMode
+Selection mode for retrieving a MessageSequence from a nested SequenceNode structure.
+StatusFlags
+Options for querying status updates
+StoreAction
+Possible flag store actions
+TransferEncoding
+The transfer-encoding used for encoding 8bit data if necessary
+Extensions
+MediaSubtypeExtension on MediaSubtype
+Extension on MediaSubtype
+SequenceExtension on List<MimeMessage>
+Allows to get a sequence for a list of MimeMessages easily
+Stringify on SelectionOptions
+Extension on SelectionOptions
+Exceptions / Errors
+BaseMailException
+Base exception for any IMAP, POP, SMTP or highlevel API exceptions
+ImapException
+Provides information about an exception
+InvalidArgumentException
+Notifies about an invalid argument
+enough_mail package
+Libraries
+codecs
+discover
+enough_mail
+highlevel
+imap
+mime
+pop
+smtp
+imap library
+Classes
+AttachmentInfo
+BinaryMimeData
+BodyPart
+Capability
+ContentDispositionHeader
+ContentInfo
+ContentTypeHeader
+Envelope
+FetchImapResult
+GenericImapResult
+Header
+Id
+ImapClient
+ImapConnectionLostEvent
+ImapEvent
+ImapExpungeEvent
+ImapFetchEvent
+ImapMessagesExistEvent
+ImapMessagesRecentEvent
+ImapServerInfo
+ImapVanishedEvent
+ImapWarning
+MailAddress
+Mailbox
+MailConventions
+MediaType
+MessageBuilder
+MessageFlags
+MessageSequence
+MetaDataEntries
+MetaDataEntry
+MimeData
+MimeMessage
+MimePart
+MimeThread
+PagedMessageSequence
+ParameterizedHeader
+PartBuilder
+QResyncParameters
+QuotaResult
+QuotaRootResult
+ResourceLimit
+Response
+ReturnOption
+SearchImapResult
+SearchQueryBuilder
+SearchTerm
+SearchTermAll
+SearchTermAnswered
+SearchTermBcc
+SearchTermBefore
+SearchTermBody
+SearchTermCc
+SearchTermCharsetUf8
+SearchTermDeleted
+SearchTermDraft
+SearchTermFlagged
+SearchTermFrom
+SearchTermHeader
+SearchTermKeyword
+SearchTermLarger
+SearchTermNew
+SearchTermNot
+SearchTermOld
+SearchTermOn
+SearchTermOr
+SearchTermRecent
+SearchTermSeen
+SearchTermSentBefore
+SearchTermSentOn
+SearchTermSentSince
+SearchTermSince
+SearchTermSmaller
+SearchTermSubject
+SearchTermText
+SearchTermTo
+SearchTermUnanswered
+SearchTermUndeleted
+SearchTermUndraft
+SearchTermUnflagged
+SearchTermUnkeyword
+SearchTermUnseen
+SequenceNode
+SortImapResult
+StoreImapResult
+TextMimeData
+UidResponseCode
+UidSearchTerm
+Enums
+CharacterSet
+ContentDisposition
+ImapEventType
+MailboxFlag
+MediaSubtype
+MediaToptype
+MetaDataDepth
+RecipientGroup
+ResponseStatus
+SearchMessageType
+SearchQueryType
+SelectionOptions
+SequenceNodeSelectionMode
+StatusFlags
+StoreAction
+TransferEncoding
+Exceptions
+BaseMailException
+ImapException
+InvalidArgumentException
+Extensions
+MediaSubtypeExtension
+SequenceExtension
+Stringify
+enough_mail 2.1.7
+   
+1
+    
+enough_mail packagedocumentationmime.dart
+Search API Docs
+
+light_mode
+mime library
+Base email classes
+
+Classes
+AttachmentInfo
+Information about a file that is attached
+BinaryMimeData
+Represents binary mime data
+BodyPart
+A BODY or BODYSTRUCTURE information element
+ContentDispositionHeader
+Specifies the content disposition header of a mime part. Compare https://tools.ietf.org/html/rfc2183 for details.
+ContentInfo
+Provides high level information about content parts.
+ContentTypeHeader
+Eases reading content-type header values
+Envelope
+Contains the envelope information about a message.
+Header
+Encapsulates a MIME header
+MailAddress
+An email address can consist of separate fields
+MailConventions
+Contains various mail specific conventions
+MediaType
+Describes the media type of a MIME message part
+MessageBuilder
+Simplifies creating mime messages for sending or storing.
+MessageFlags
+Contains common message flags
+MessageSequence
+Defines a list of message IDs.
+MimeData
+Abstracts textual or binary mime data
+MimeMessage
+A MIME message
+MimePart
+A MIME part In a simple case a MIME message only has one MIME part.
+MimeThread
+Abstract a mime message thread
+PagedMessageSequence
+A paginated list of message IDs
+ParameterizedHeader
+A parameter that may contain additional parameters
+PartBuilder
+Allows to configure a mime part
+SequenceNode
+A message sequence to handle nested IDs like in the IMAP THREAD extension.
+TextMimeData
+Represents textual mime data
+Enums
+CharacterSet
+The used character set
+ContentDisposition
+Specifies the content disposition of a mime part. Compare https://tools.ietf.org/html/rfc2183 for details.
+MediaSubtype
+Detailed media types Compare https://www.iana.org/assignments/media-types/media-types.xhtml
+MediaToptype
+Top level media types
+RecipientGroup
+The recipient
+SequenceNodeSelectionMode
+Selection mode for retrieving a MessageSequence from a nested SequenceNode structure.
+TransferEncoding
+The transfer-encoding used for encoding 8bit data if necessary
+Extensions
+MediaSubtypeExtension on MediaSubtype
+Extension on MediaSubtype
+SequenceExtension on List<MimeMessage>
+Allows to get a sequence for a list of MimeMessages easily
+Exceptions / Errors
+BaseMailException
+Base exception for any IMAP, POP, SMTP or highlevel API exceptions
+InvalidArgumentException
+Notifies about an invalid argument
+enough_mail package
+Libraries
+codecs
+discover
+enough_mail
+highlevel
+imap
+mime
+pop
+smtp
+mime library
+Classes
+AttachmentInfo
+BinaryMimeData
+BodyPart
+ContentDispositionHeader
+ContentInfo
+ContentTypeHeader
+Envelope
+Header
+MailAddress
+MailConventions
+MediaType
+MessageBuilder
+MessageFlags
+MessageSequence
+MimeData
+MimeMessage
+MimePart
+MimeThread
+PagedMessageSequence
+ParameterizedHeader
+PartBuilder
+SequenceNode
+TextMimeData
+Enums
+CharacterSet
+ContentDisposition
+MediaSubtype
+MediaToptype
+RecipientGroup
+SequenceNodeSelectionMode
+TransferEncoding
+Exceptions
+BaseMailException
+InvalidArgumentException
+Extensions
+MediaSubtypeExtension
+SequenceExtension
+enough_mail 2.1.7
+
+
+enough_mail packagedocumentationpop.dart
+Search API Docs
+
+light_mode
+pop library
+Fetch messages using the POP3 protocol
+
+Start with the PopClient to connect to a POP3 enabled service.
+
+Classes
+AttachmentInfo
+Information about a file that is attached
+BinaryMimeData
+Represents binary mime data
+BodyPart
+A BODY or BODYSTRUCTURE information element
+ContentDispositionHeader
+Specifies the content disposition header of a mime part. Compare https://tools.ietf.org/html/rfc2183 for details.
+ContentInfo
+Provides high level information about content parts.
+ContentTypeHeader
+Eases reading content-type header values
+Envelope
+Contains the envelope information about a message.
+Header
+Encapsulates a MIME header
+MailAddress
+An email address can consist of separate fields
+MailConventions
+Contains various mail specific conventions
+MediaType
+Describes the media type of a MIME message part
+MessageBuilder
+Simplifies creating mime messages for sending or storing.
+MessageFlags
+Contains common message flags
+MessageListing
+Basic information about a message
+MessageSequence
+Defines a list of message IDs.
+MimeData
+Abstracts textual or binary mime data
+MimeMessage
+A MIME message
+MimePart
+A MIME part In a simple case a MIME message only has one MIME part.
+MimeThread
+Abstract a mime message thread
+PagedMessageSequence
+A paginated list of message IDs
+ParameterizedHeader
+A parameter that may contain additional parameters
+PartBuilder
+Allows to configure a mime part
+PopClient
+Client to access POP3 compliant servers. Compare https://tools.ietf.org/html/rfc1939 for details.
+PopConnectionLostEvent
+Informs about a lost connection
+PopEvent
+Base event class
+PopResponse<T>
+Provides access to a POP response coming from the POP service
+PopServerInfo
+The server information
+PopStatus
+Provides status information about a POP service
+SequenceNode
+A message sequence to handle nested IDs like in the IMAP THREAD extension.
+TextMimeData
+Represents textual mime data
+Enums
+CharacterSet
+The used character set
+ContentDisposition
+Specifies the content disposition of a mime part. Compare https://tools.ietf.org/html/rfc2183 for details.
+MediaSubtype
+Detailed media types Compare https://www.iana.org/assignments/media-types/media-types.xhtml
+MediaToptype
+Top level media types
+PopEventType
+Common POP event types
+RecipientGroup
+The recipient
+SequenceNodeSelectionMode
+Selection mode for retrieving a MessageSequence from a nested SequenceNode structure.
+TransferEncoding
+The transfer-encoding used for encoding 8bit data if necessary
+Extensions
+MediaSubtypeExtension on MediaSubtype
+Extension on MediaSubtype
+SequenceExtension on List<MimeMessage>
+Allows to get a sequence for a list of MimeMessages easily
+Exceptions / Errors
+BaseMailException
+Base exception for any IMAP, POP, SMTP or highlevel API exceptions
+InvalidArgumentException
+Notifies about an invalid argument
+PopException
+Informs about an exceptional case when dealing with a POP service
+enough_mail package
+Libraries
+codecs
+discover
+enough_mail
+highlevel
+imap
+mime
+pop
+smtp
+pop library
+Classes
+AttachmentInfo
+BinaryMimeData
+BodyPart
+ContentDispositionHeader
+ContentInfo
+ContentTypeHeader
+Envelope
+Header
+MailAddress
+MailConventions
+MediaType
+MessageBuilder
+MessageFlags
+MessageListing
+MessageSequence
+MimeData
+MimeMessage
+MimePart
+MimeThread
+PagedMessageSequence
+ParameterizedHeader
+PartBuilder
+PopClient
+PopConnectionLostEvent
+PopEvent
+PopResponse
+PopServerInfo
+PopStatus
+SequenceNode
+TextMimeData
+Enums
+CharacterSet
+ContentDisposition
+MediaSubtype
+MediaToptype
+PopEventType
+RecipientGroup
+SequenceNodeSelectionMode
+TransferEncoding
+Exceptions
+BaseMailException
+InvalidArgumentException
+PopException
+Extensions
+MediaSubtypeExtension
+SequenceExtension
+enough_mail 2.1.7
+   
+1
+    
+enough_mail packagedocumentationsmtp.dart
+Search API Docs
+
+light_mode
+smtp library
+Everything you need to send messages using the SMTP protocol.
+
+With the SmtpClient you can connect to any SMTP service.
+
+Classes
+AttachmentInfo
+Information about a file that is attached
+BinaryMimeData
+Represents binary mime data
+BodyPart
+A BODY or BODYSTRUCTURE information element
+ContentDispositionHeader
+Specifies the content disposition header of a mime part. Compare https://tools.ietf.org/html/rfc2183 for details.
+ContentInfo
+Provides high level information about content parts.
+ContentTypeHeader
+Eases reading content-type header values
+Envelope
+Contains the envelope information about a message.
+Header
+Encapsulates a MIME header
+MailAddress
+An email address can consist of separate fields
+MailConventions
+Contains various mail specific conventions
+MediaType
+Describes the media type of a MIME message part
+MessageBuilder
+Simplifies creating mime messages for sending or storing.
+MessageFlags
+Contains common message flags
+MessageSequence
+Defines a list of message IDs.
+MimeData
+Abstracts textual or binary mime data
+MimeMessage
+A MIME message
+MimePart
+A MIME part In a simple case a MIME message only has one MIME part.
+MimeThread
+Abstract a mime message thread
+PagedMessageSequence
+A paginated list of message IDs
+ParameterizedHeader
+A parameter that may contain additional parameters
+PartBuilder
+Allows to configure a mime part
+SequenceNode
+A message sequence to handle nested IDs like in the IMAP THREAD extension.
+SmtpClient
+Low-level SMTP library for Dart
+SmtpConnectionLostEvent
+Event signalling a lost connection
+SmtpEvent
+Base SMTP event
+SmtpResponse
+Contains a response from the SMTP server
+SmtpResponseLine
+Contains a single SMTP response line
+SmtpServerInfo
+Keeps information about the remote SMTP server
+TextMimeData
+Represents textual mime data
+Enums
+AuthMechanism
+Defines the available authentication mechanism
+CharacterSet
+The used character set
+ContentDisposition
+Specifies the content disposition of a mime part. Compare https://tools.ietf.org/html/rfc2183 for details.
+MediaSubtype
+Detailed media types Compare https://www.iana.org/assignments/media-types/media-types.xhtml
+MediaToptype
+Top level media types
+RecipientGroup
+The recipient
+SequenceNodeSelectionMode
+Selection mode for retrieving a MessageSequence from a nested SequenceNode structure.
+SmtpEventType
+Types of SMTP events
+SmtpResponseType
+Basic type of a SMTP response
+TransferEncoding
+The transfer-encoding used for encoding 8bit data if necessary
+Extensions
+MediaSubtypeExtension on MediaSubtype
+Extension on MediaSubtype
+SequenceExtension on List<MimeMessage>
+Allows to get a sequence for a list of MimeMessages easily
+Exceptions / Errors
+BaseMailException
+Base exception for any IMAP, POP, SMTP or highlevel API exceptions
+InvalidArgumentException
+Notifies about an invalid argument
+SmtpException
+Contains details about SMTP problems
+enough_mail package
+Libraries
+codecs
+discover
+enough_mail
+highlevel
+imap
+mime
+pop
+smtp
+smtp library
+Classes
+AttachmentInfo
+BinaryMimeData
+BodyPart
+ContentDispositionHeader
+ContentInfo
+ContentTypeHeader
+Envelope
+Header
+MailAddress
+MailConventions
+MediaType
+MessageBuilder
+MessageFlags
+MessageSequence
+MimeData
+MimeMessage
+MimePart
+MimeThread
+PagedMessageSequence
+ParameterizedHeader
+PartBuilder
+SequenceNode
+SmtpClient
+SmtpConnectionLostEvent
+SmtpEvent
+SmtpResponse
+SmtpResponseLine
+SmtpServerInfo
+TextMimeData
+Enums
+AuthMechanism
+CharacterSet
+ContentDisposition
+MediaSubtype
+MediaToptype
+RecipientGroup
+SequenceNodeSelectionMode
+SmtpEventType
+SmtpResponseType
+TransferEncoding
+Exceptions
+BaseMailException
+InvalidArgumentException
+SmtpException
+Extensions
+MediaSubtypeExtension
+SequenceExtension
+enough_mail 2.1.7
+   
+1
+    
+enough_mail packagedocumentationenough_mail.dartMailClient class
+Search API Docs
+
+light_mode
+MailClient class
+Highlevel online API to access mail.
+
+Constructors
+MailClient(MailAccount account, {bool isLogEnabled = false, int? downloadSizeLimit, EventBus? eventBus, String? logName, Duration? defaultWriteTimeout = const Duration(seconds: 2), Duration? defaultResponseTimeout = const Duration(seconds: 5), bool onBadCertificate(X509Certificate)?, Id? clientId, Future<OauthToken?> refresh(MailClient client, OauthToken expiredToken)?, Future onConfigChanged(MailAccount account)?})
+Creates a new highlevel online mail client for the given account.
+Properties
+account → MailAccount
+The mail account associated used by this client
+no setter
+clientId → Id?
+The ID of the client app using this MailClient.
+final
+defaultResponseTimeout → Duration?
+The default timeout for server responses, currently only used on IMAP for selected commands.
+final
+defaultWriteTimeout → Duration?
+The default timeout for write operations
+final
+eventBus → EventBus
+event bus for firing and listening to events
+no setter
+hashCode → int
+The hash code for this object.
+no setterinherited
+isConnected → bool
+Checks if this mail client is connected
+no setter
+lowLevelIncomingMailClient → ClientBase
+Retrieves the low level mail client for reading mails
+no setter
+lowLevelIncomingMailClientType → ServerType
+Retrieves the type of the low level incoming client.
+no setter
+lowLevelOutgoingMailClient → ClientBase
+Retrieves the low level mail client for sending mails
+no setter
+lowLevelOutgoingMailClientType → ServerType
+Retrieves the type pof the low level mail client.
+no setter
+mailboxes → List<Mailbox>?
+Retrieves the previously caches mailboxes
+no setter
+runtimeType → Type
+A representation of the runtime type of the object.
+no setterinherited
+selectedMailbox → Mailbox?
+Retrieves the currently selected mailbox, if any.
+no setter
+serverId → Id?
+The ID of the IMAP server this mail client is connected to.
+no setter
+supportsMailboxes → bool
+Checks if this mail client supports different mailboxes
+no setter
+supportsThreading → bool
+Checks if the connected service supports threading
+no setter
+Methods
+addEventFilter(MailEventFilter filter) → void
+Adds the specified mail event filter.
+appendMessage(MimeMessage message, Mailbox targetMailbox, {List<String>? flags}) → Future<UidResponseCode?>
+Appends the message to the targetMailbox.
+appendMessageToFlag(MimeMessage message, MailboxFlag targetMailboxFlag, {List<String>? flags}) → Future<UidResponseCode?>
+Appends the message to the mailbox with the targetMailboxFlag.
+buildMimeMessageWithRecommendedTextEncoding(MessageBuilder messageBuilder) → Future<MimeMessage?>
+Builds the mime message from the given messageBuilder with the recommended text encodings.
+connect({Duration timeout = const Duration(seconds: 20)}) → Future<void>
+Connects and authenticates with the specified incoming mail server.
+createMailbox(String mailboxName, {Mailbox? parentMailbox}) → Future<Mailbox>
+Creates a new mailbox with the given mailboxName.
+deleteAllMessages(Mailbox mailbox, {bool expunge = false}) → Future<DeleteResult>
+Deletes all messages from the specified mailbox.
+deleteMailbox(Mailbox mailbox) → Future<void>
+Deletes the specified mailbox
+deleteMessage(MimeMessage message, {bool expunge = false}) → Future<DeleteResult>
+Deletes the given message.
+deleteMessages(MessageSequence sequence, {bool expunge = false, List<MimeMessage>? messages}) → Future<DeleteResult>
+Deletes the given message sequence.
+disconnect() → Future<void>
+Disconnects from the mail service.
+fetchMessageContents(MimeMessage message, {int? maxSize, bool markAsSeen = false, List<MediaToptype>? includedInlineTypes, Duration? responseTimeout}) → Future<MimeMessage>
+Fetches the contents of the specified message.
+fetchMessagePart(MimeMessage message, String fetchId, {Duration? responseTimeout}) → Future<MimePart>
+Fetches the part with the specified fetchId of the specified message.
+fetchMessages({Mailbox? mailbox, int count = 20, int page = 1, FetchPreference fetchPreference = FetchPreference.fullWhenWithinSize}) → Future<List<MimeMessage>>
+Loads the specified page of messages starting at the latest message and going down count messages.
+fetchMessageSequence(MessageSequence sequence, {Mailbox? mailbox, FetchPreference fetchPreference = FetchPreference.fullWhenWithinSize, bool markAsSeen = false}) → Future<List<MimeMessage>>
+Loads the specified sequence of messages.
+fetchMessagesNextPage(PagedMessageSequence pagedSequence, {Mailbox? mailbox, FetchPreference fetchPreference = FetchPreference.fullWhenWithinSize, bool markAsSeen = false}) → Future<List<MimeMessage>>
+Loads the next page of messages in the given pagedSequence.
+fetchNextPage(PagedMessageResult pagedResult) → Future<List<MimeMessage>>
+Retrieves the next page of messages for the specified pagedResult.
+fetchThreadData({required DateTime since, Mailbox? mailbox, bool setThreadSequences = false}) → Future<ThreadDataResult>
+Retrieves thread information starting at since.
+fetchThreads({required DateTime since, Mailbox? mailbox, ThreadPreference threadPreference = ThreadPreference.latest, FetchPreference fetchPreference = FetchPreference.envelope, int pageSize = 30, Duration? responseTimeout}) → Future<ThreadResult>
+Retrieves the threads starting at since.
+fetchThreadsNextPage(ThreadResult threadResult) → Future<List<MimeMessage>>
+Retrieves the next page for the given threadResult and returns the loaded messages.
+flagMessage(MimeMessage message, {bool? isSeen, bool? isFlagged, bool? isAnswered, bool? isForwarded, bool? isDeleted, bool? isMdnSent, bool? isReadReceiptSent}) → Future<void>
+Flags the message with the specified flags.
+getMailbox(MailboxFlag flag, [List<Mailbox>? boxes]) → Mailbox?
+Retrieves the mailbox with the specified flag from the provided boxes.
+isPolling() → bool
+Checks if this mail client is currently polling.
+junkMessage(MimeMessage message) → Future<MoveResult>
+Moves the specified message to the junk folder
+junkMessages(MessageSequence sequence, {List<MimeMessage>? messages}) → Future<MoveResult>
+Moves the specified message sequence to the junk folder
+listMailboxes({List<MailboxFlag>? order}) → Future<List<Mailbox>>
+Lists all mailboxes/folders of the incoming mail server.
+listMailboxesAsTree({bool createIntermediate = true, List<MailboxFlag> order = defaultMailboxOrder}) → Future<Tree<Mailbox?>>
+Lists all mailboxes/folders of the incoming mail server as a tree in the specified order.
+markAnswered(MessageSequence sequence, {int? unchangedSinceModSequence}) → Future<void>
+Mark the messages from the specified sequence as answered.
+markDeleted(MessageSequence sequence, {int? unchangedSinceModSequence}) → Future<void>
+Mark the messages from the specified sequence as deleted.
+markFlagged(MessageSequence sequence, {int? unchangedSinceModSequence}) → Future<void>
+Mark the messages from the specified sequence as flagged.
+markForwarded(MessageSequence sequence, {bool? silent, int? unchangedSinceModSequence}) → Future<void>
+Mark from the specified sequence as forwarded.
+markSeen(MessageSequence sequence, {int? unchangedSinceModSequence}) → Future<void>
+Mark the messages from the specified sequence as seen/read.
+markUnanswered(MessageSequence sequence, {int? unchangedSinceModSequence}) → Future<void>
+Mark the messages from the specified sequence as not answered.
+markUndeleted(MessageSequence sequence, {int? unchangedSinceModSequence}) → Future<void>
+Mark the messages from the specified sequence as not deleted.
+markUnflagged(MessageSequence sequence, {int? unchangedSinceModSequence}) → Future<void>
+Mark the messages from the specified sequence as unflagged.
+markUnforwarded(MessageSequence sequence, {int? unchangedSinceModSequence}) → Future<void>
+Mark the messages from the specified sequence as not forwarded.
+markUnseen(MessageSequence sequence, {int? unchangedSinceModSequence}) → Future<void>
+Mark the messages from the specified sequence as unseen/unread.
+moveMessage(MimeMessage message, Mailbox target) → Future<MoveResult>
+Moves the specified message to the given target folder
+moveMessages(MessageSequence sequence, Mailbox target, {List<MimeMessage>? messages}) → Future<MoveResult>
+Moves the specified message sequence to the given target folder
+moveMessagesToFlag(MessageSequence sequence, MailboxFlag flag, {List<MimeMessage>? messages}) → Future<MoveResult>
+Moves the specified message sequence to the folder flagged with the specified mailbox flag.
+moveMessagesToInbox(MessageSequence sequence, {List<MimeMessage>? messages}) → Future<MoveResult>
+Moves the specified message sequence to the inbox folder
+moveMessageToFlag(MimeMessage message, MailboxFlag flag) → Future<MoveResult>
+Moves the specified message to the folder flagged with the specified mailbox flag.
+moveMessageToInbox(MimeMessage message) → Future<MoveResult>
+Moves the specified message to the inbox folder
+noSuchMethod(Invocation invocation) → dynamic
+Invoked when a nonexistent method or property is accessed.
+inherited
+reconnect() → Future<void>
+Enforces to reconnect with the incoming service.
+removeEventFilter(MailEventFilter filter) → void
+Removes the specified mail event filter.
+resume({bool startPollingWhenError = true}) → Future<void>
+Resumes the mail client after a some inactivity.
+saveDraftMessage(MimeMessage message, {Mailbox? draftsMailbox}) → Future<UidResponseCode?>
+Appends the message to the drafts mailbox with the \Draft and \Seen message flags.
+searchMessages(MailSearch search) → Future<MailSearchResult>
+Searches the messages with the criteria defined in search.
+searchMessagesNextPage(MailSearchResult searchResult) → Future<List<MimeMessage>>
+Retrieves the next page of messages for the specified searchResult.
+selectInbox({bool enableCondStore = false, QResyncParameters? qresync}) → Future<Mailbox>
+Shortcut to select the INBOX.
+selectMailbox(Mailbox mailbox, {bool enableCondStore = false, QResyncParameters? qresync}) → Future<Mailbox>
+Selects the specified mailbox/folder.
+selectMailboxByFlag(MailboxFlag flag, {bool enableCondStore = false, QResyncParameters? qresync}) → Future<Mailbox>
+Selects the mailbox/folder with the specified flag.
+selectMailboxByPath(String path, {bool enableCondStore = false, QResyncParameters? qresync}) → Future<Mailbox>
+Selects the mailbox/folder with the specified path.
+sendMessage(MimeMessage message, {MailAddress? from, bool appendToSent = true, bool supportUnicode = false, Mailbox? sentMailbox, bool use8BitEncoding = false, List<MailAddress>? recipients}) → Future<void>
+Sends the specified message.
+sendMessageBuilder(MessageBuilder messageBuilder, {MailAddress? from, bool appendToSent = true, Mailbox? sentMailbox, List<MailAddress>? recipients}) → Future<void>
+Sends the message defined with the specified messageBuilder with the recommended text encoding.
+sortMailboxes(List<MailboxFlag> order, List<Mailbox> mailboxes, {bool keepRemaining = true, bool sortRemainingAlphabetically = true}) → List<Mailbox>
+Retrieves the mailbox with the specified order from the provided mailboxes. The underlying mailboxes are not changed.
+startPolling([Duration duration = defaultPollingDuration]) → Future<void>
+Starts listening for new incoming messages.
+stopPolling() → Future<void>
+Stops listening for new messages.
+stopPollingIfNeeded() → Future<void>
+Stops listening for new messages if this client is currently polling.
+store(MessageSequence sequence, List<String> flags, {StoreAction action = StoreAction.add, int? unchangedSinceModSequence}) → Future<void>
+Stores the specified message flags for the given message sequence.
+supports8BitEncoding() → Future<bool>
+Checks if the mail provider supports 8 bit encoding for new messages.
+supportsFlagging() → bool
+Determines if message flags such as \Seen can be stored.
+toString() → String
+A string representation of this object.
+inherited
+undoDeleteMessages(DeleteResult deleteResult) → Future<DeleteResult>
+Reverts the previous deleteResult
+undoMoveMessages(MoveResult moveResult) → Future<MoveResult>
+Reverts the previous move operation, if possible.
+Operators
+operator ==(Object other) → bool
+The equality operator.
+inherited
+Constants
+defaultMailboxOrder → const List<MailboxFlag>
+Default ordering for mailboxes
+defaultPollingDuration → const Duration
+Default polling duration (every 2 minutes)
+enough_mail library
+Classes
+AttachmentInfo
+Base64MailCodec
+BinaryMimeData
+BodyPart
+Capability
+ClientConfig
+ConfigEmailProvider
+ContentDispositionHeader
+ContentInfo
+ContentTypeHeader
+DateCodec
+DeleteResult
+Discover
+Envelope
+FetchImapResult
+GenericImapResult
+Header
+Id
+ImapClient
+ImapConnectionLostEvent
+ImapEvent
+ImapExpungeEvent
+ImapFetchEvent
+ImapMessagesExistEvent
+ImapMessagesRecentEvent
+ImapServerInfo
+ImapVanishedEvent
+ImapWarning
+MailAccount
+MailAddress
+MailAuthentication
+Mailbox
+MailClient
+MailCodec
+MailConnectionLostEvent
+MailConnectionReEstablishedEvent
+MailConventions
+MailEvent
+MailLoadEvent
+MailSearch
+MailSearchResult
+MailServerConfig
+MailUpdateEvent
+MailVanishedEvent
+MediaType
+MessageBuilder
+MessageFlags
+MessageListing
+MessageSequence
+MessagesOperationResult
+MetaDataEntries
+MetaDataEntry
+MimeData
+MimeMessage
+MimePart
+MimeThread
+MoveResult
+OauthAuthentication
+OauthToken
+PagedMessageResult
+PagedMessageSequence
+ParameterizedHeader
+PartBuilder
+PlainAuthentication
+PopClient
+PopConnectionLostEvent
+PopEvent
+PopResponse
+PopServerInfo
+PopStatus
+QResyncParameters
+QuotaResult
+QuotaRootResult
+QuotedPrintableMailCodec
+ResourceLimit
+Response
+ReturnOption
+SearchImapResult
+SearchQueryBuilder
+SearchTerm
+SearchTermAll
+SearchTermAnswered
+SearchTermBcc
+SearchTermBefore
+SearchTermBody
+SearchTermCc
+SearchTermCharsetUf8
+SearchTermDeleted
+SearchTermDraft
+SearchTermFlagged
+SearchTermFrom
+SearchTermHeader
+SearchTermKeyword
+SearchTermLarger
+SearchTermNew
+SearchTermNot
+SearchTermOld
+SearchTermOn
+SearchTermOr
+SearchTermRecent
+SearchTermSeen
+SearchTermSentBefore
+SearchTermSentOn
+SearchTermSentSince
+SearchTermSince
+SearchTermSmaller
+SearchTermSubject
+SearchTermText
+SearchTermTo
+SearchTermUnanswered
+SearchTermUndeleted
+SearchTermUndraft
+SearchTermUnflagged
+SearchTermUnkeyword
+SearchTermUnseen
+SequenceNode
+ServerConfig
+SmtpClient
+SmtpConnectionLostEvent
+SmtpEvent
+SmtpResponse
+SmtpResponseLine
+SmtpServerInfo
+SortImapResult
+StoreImapResult
+TextMimeData
+ThreadDataResult
+ThreadResult
+Tree
+TreeElement
+UidResponseCode
+UidSearchTerm
+UserNameBasedAuthentication
+Enums
+Authentication
+AuthMechanism
+CharacterSet
+ContentDisposition
+DeleteAction
+FetchPreference
+HeaderEncoding
+ImapEventType
+MailboxFlag
+MailEventType
+MediaSubtype
+MediaToptype
+MetaDataDepth
+MoveAction
+PopEventType
+RecipientGroup
+ResponseStatus
+SearchMessageType
+SearchQueryType
+SelectionOptions
+SequenceNodeSelectionMode
+ServerType
+SmtpEventType
+SmtpResponseType
+SocketType
+StatusFlags
+StoreAction
+ThreadPreference
+TransferEncoding
+UsernameType
+Typedefs
+MailEventFilter
+Exceptions
+BaseMailException
+ImapException
+InvalidArgumentException
+MailException
+PopException
+SmtpException
+Extensions
+MediaSubtypeExtension
+SequenceExtension
+Stringify
+Constructors
+new
+Properties
+account
+clientId
+defaultResponseTimeout
+defaultWriteTimeout
+eventBus
+hashCode
+isConnected
+lowLevelIncomingMailClient
+lowLevelIncomingMailClientType
+lowLevelOutgoingMailClient
+lowLevelOutgoingMailClientType
+mailboxes
+runtimeType
+selectedMailbox
+serverId
+supportsMailboxes
+supportsThreading
+Methods
+addEventFilter
+appendMessage
+appendMessageToFlag
+buildMimeMessageWithRecommendedTextEncoding
+connect
+createMailbox
+deleteAllMessages
+deleteMailbox
+deleteMessage
+deleteMessages
+disconnect
+fetchMessageContents
+fetchMessagePart
+fetchMessages
+fetchMessageSequence
+fetchMessagesNextPage
+fetchNextPage
+fetchThreadData
+fetchThreads
+fetchThreadsNextPage
+flagMessage
+getMailbox
+isPolling
+junkMessage
+junkMessages
+listMailboxes
+listMailboxesAsTree
+markAnswered
+markDeleted
+markFlagged
+markForwarded
+markSeen
+markUnanswered
+markUndeleted
+markUnflagged
+markUnforwarded
+markUnseen
+moveMessage
+moveMessages
+moveMessagesToFlag
+moveMessagesToInbox
+moveMessageToFlag
+moveMessageToInbox
+noSuchMethod
+reconnect
+removeEventFilter
+resume
+saveDraftMessage
+searchMessages
+searchMessagesNextPage
+selectInbox
+selectMailbox
+selectMailboxByFlag
+selectMailboxByPath
+sendMessage
+sendMessageBuilder
+sortMailboxes
+startPolling
+stopPolling
+stopPollingIfNeeded
+store
+supports8BitEncoding
+supportsFlagging
+toString
+undoDeleteMessages
+undoMoveMessages
+Operators
+operator ==
+Constants
+defaultMailboxOrder
+defaultPollingDuration
+enough_mail 2.1.7
+
+
+enough_mail packagedocumentation
+Search API Docs
+
+light_mode
+IMAP, POP3 and SMTP clients for Dart and Flutter email developers.
+
+Available under the commercial friendly MPL Mozilla Public License 2.0.
+
+Installation
+Add this dependency your pubspec.yaml file:
+
+dependencies:
+  enough_mail: ^2.1.7
+The latest version or enough_mail is enough_mail version.
+
+API Documentation
+Check out the full API documentation at https://pub.dev/documentation/enough_mail/latest/
+
+High Level API Usage
+The high level API abstracts away from IMAP and POP3 details, reconnects automatically and allows to easily watch a mailbox for new messages. A simple usage example for using the high level API:
+
+import 'dart:io';
+import 'package:enough_mail/enough_mail.dart';
+
+String userName = 'user.name';
+String password = 'password';
+
+void main() async {
+  await mailExample();
+}
+
+
+/// Builds a simple example message
+MimeMessage buildMessage() {
+  final builder = MessageBuilder.prepareMultipartAlternativeMessage(
+    plainText: 'Hello world!',
+    htmlText: '<p>Hello world!</p>',
+  )
+    ..from = [MailAddress('Personal Name', 'sender@domain.com')]
+    ..to = [
+      MailAddress('Recipient Personal Name', 'recipient@domain.com'),
+      MailAddress('Other Recipient', 'other@domain.com')
+    ];
+  return builder.buildMimeMessage();
+}
+
+/// Builds an example message with attachment
+Future<MimeMessage> buildMessageWithAttachment() async {
+  final builder = MessageBuilder()
+    ..from = [MailAddress('Personal Name', 'sender@domain.com')]
+    ..to = [
+      MailAddress('Recipient Personal Name', 'recipient@domain.com'),
+      MailAddress('Other Recipient', 'other@domain.com')
+    ]
+    ..addMultipartAlternative(
+      plainText: 'Hello world!',
+      htmlText: '<p>Hello world!</p>',
+    );
+  final file = File.fromUri(Uri.parse('file://./document.pdf'));
+  await builder.addFile(file, MediaSubtype.applicationPdf.mediaType);
+  return builder.buildMimeMessage();
+}
+
+/// High level mail API example
+Future<void> mailExample() async {
+  final email = '$userName@$domain';
+  print('discovering settings for  $email...');
+  final config = await Discover.discover(email);
+  if (config == null) {
+    // note that you can also directly create an account when
+    // you cannot auto-discover the settings:
+    // Compare the [MailAccount.fromManualSettings]
+    // and [MailAccount.fromManualSettingsWithAuth]
+    // methods for details.
+    print('Unable to auto-discover settings for $email');
+    return;
+  }
+  print('connecting to ${config.displayName}.');
+  final account =
+      MailAccount.fromDiscoveredSettings('my account', email, password, config);
+  final mailClient = MailClient(account, isLogEnabled: true);
+  try {
+    await mailClient.connect();
+    print('connected');
+    final mailboxes =
+        await mailClient.listMailboxesAsTree(createIntermediate: false);
+    print(mailboxes);
+    await mailClient.selectInbox();
+    final messages = await mailClient.fetchMessages(count: 20);
+    messages.forEach(printMessage);
+    mailClient.eventBus.on<MailLoadEvent>().listen((event) {
+      print('New message at ${DateTime.now()}:');
+      printMessage(event.message);
+    });
+    await mailClient.startPolling();
+    // generate and send email:
+    final mimeMessage = buildMessage();
+    await mailClient.sendMessage(mimeMessage);
+  } on MailException catch (e) {
+    print('High level API failed with $e');
+  }
+}
+Low Level Usage
+A simple usage example for using the low level API:
+
+import 'dart:io';
+import 'package:enough_mail/enough_mail.dart';
+
+String userName = 'user.name';
+String password = 'password';
+String imapServerHost = 'imap.domain.com';
+int imapServerPort = 993;
+bool isImapServerSecure = true;
+String popServerHost = 'pop.domain.com';
+int popServerPort = 995;
+bool isPopServerSecure = true;
+String smtpServerHost = 'smtp.domain.com';
+int smtpServerPort = 465;
+bool isSmtpServerSecure = true;
+
+void main() async {
+  await discoverExample();
+  await imapExample();
+  await smtpExample();
+  await popExample();
+  exit(0);
+}
+
+Future<void> discoverExample() async {
+  var email = 'someone@enough.de';
+  var config = await Discover.discover(email, isLogEnabled: false);
+  if (config == null) {
+    print('Unable to discover settings for $email');
+  } else {
+    print('Settings for $email:');
+    for (var provider in config.emailProviders) {
+      print('provider: ${provider.displayName}');
+      print('provider-domains: ${provider.domains}');
+      print('documentation-url: ${provider.documentationUrl}');
+      print('Incoming:');
+      print(provider.preferredIncomingServer);
+      print('Outgoing:');
+      print(provider.preferredOutgoingServer);
+    }
+  }
+}
+
+/// Low level IMAP API usage example
+Future<void> imapExample() async {
+  final client = ImapClient(isLogEnabled: false);
+  try {
+    await client.connectToServer(imapServerHost, imapServerPort,
+        isSecure: isImapServerSecure);
+    await client.login(userName, password);
+    final mailboxes = await client.listMailboxes();
+    print('mailboxes: $mailboxes');
+    await client.selectInbox();
+    // fetch 10 most recent messages:
+    final fetchResult = await client.fetchRecentMessages(
+        messageCount: 10, criteria: 'BODY.PEEK[]');
+    for (final message in fetchResult.messages) {
+      printMessage(message);
+    }
+    await client.logout();
+  } on ImapException catch (e) {
+    print('IMAP failed with $e');
+  }
+}
+
+/// Low level SMTP API example
+Future<void> smtpExample() async {
+  final client = SmtpClient('enough.de', isLogEnabled: true);
+  try {
+    await client.connectToServer(smtpServerHost, smtpServerPort,
+        isSecure: isSmtpServerSecure);
+    await client.ehlo();
+    if (client.serverInfo.supportsAuth(AuthMechanism.plain)) {
+      await client.authenticate('user.name', 'password', AuthMechanism.plain);
+    } else if (client.serverInfo.supportsAuth(AuthMechanism.login)) {
+      await client.authenticate('user.name', 'password', AuthMechanism.login);
+    } else {
+      return;
+    }
+    final builder = MessageBuilder.prepareMultipartAlternativeMessage(
+      plainText: 'hello world.',
+      htmlText: '<p>hello <b>world</b></p>',
+    )
+      ..from = [MailAddress('My name', 'sender@domain.com')]
+      ..to = [MailAddress('Your name', 'recipient@domain.com')]
+      ..subject = 'My first message';
+    final mimeMessage = builder.buildMimeMessage();
+    final sendResponse = await client.sendMessage(mimeMessage);
+    print('message sent: ${sendResponse.isOkStatus}');
+  } on SmtpException catch (e) {
+    print('SMTP failed with $e');
+  }
+}
+
+/// Low level POP3 API example
+Future<void> popExample() async {
+  final client = PopClient(isLogEnabled: false);
+  try {
+    await client.connectToServer(popServerHost, popServerPort,
+        isSecure: isPopServerSecure);
+    await client.login(userName, password);
+    // alternative login:
+    // await client.loginWithApop(userName, password); // optional different login mechanism
+    final status = await client.status();
+    print(
+        'status: messages count=${status.numberOfMessages}, messages size=${status.totalSizeInBytes}');
+    final messageList = await client.list(status.numberOfMessages);
+    print(
+        'last message: id=${messageList?.first?.id} size=${messageList?.first?.sizeInBytes}');
+    var message = await client.retrieve(status.numberOfMessages);
+    printMessage(message);
+    message = await client.retrieve(status.numberOfMessages + 1);
+    print('trying to retrieve newer message succeeded');
+    await client.quit();
+  } on PopException catch (e) {
+    print('POP failed with $e');
+  }
+}
+
+void printMessage(MimeMessage message) {
+  print('from: ${message.from} with subject "${message.decodeSubject()}"');
+  if (!message.isTextPlainMessage()) {
+    print(' content-type: ${message.mediaType}');
+  } else {
+    final plainText = message.decodeTextPlainPart();
+    if (plainText != null) {
+      final lines = plainText.split('\r\n');
+      for (final line in lines) {
+        if (line.startsWith('>')) {
+          // break when quoted text starts
+          break;
+        }
+        print(line);
+      }
+    }
+  }
+}
+Related Projects
+Check out these related projects:
+
+enough_mail_html generates HTML out of a MimeMessage.
+enough_mail_flutter provides some common Flutter widgets for any mail app.
+enough_mail_icalendar for handling calendar invites in emails.
+enough_mail_app aims to become a full mail app.
+enough_convert provides the encodings missing from dart:convert.
+Miss a feature or found a bug?
+Please file feature requests and bugs at the issue tracker.
+
+Contribute
+Want to contribute? Please check out contribute. This is an open-source community project. Anyone, even beginners, can contribute.
+
+This is how you contribute:
+
+Fork the enough_mail project by pressing the fork button.
+Clone your fork to your computer: git clone github.com/$your_username/enough_mail
+Do your changes. When you are done, commit changes with git add -A and git commit.
+Push changes to your personal repository: git push origin
+Go to enough_mail and create a pull request.
+Thank you in advance!
+
+Thanks to all Contributors!!
+
+Features
+Base standards
+✅ IMAP4 rev1 support
+✅ SMTP support
+✅ POP3 support
+✅ MIME parsing and generation support
+IMAP extensions
+The following IMAP extensions are supported:
+
+✅ IMAP IDLE
+✅ IMAP METADATA
+✅ UIDPLUS
+✅ MOVE
+✅ CONDSTORE
+✅ QRESYNC
+✅ ENABLE
+✅ QUOTA
+✅ IMAP Support for UTF-8
+✅ ESEARCH
+✅ SORT and THREAD
+✅ UNSELECT)
+✅ ESORT and PARTIAL from Contexts
+✅ List extensions (rfc5258, rfc5819, rfc6154)
+SMTP Extensions
+The following SMTP extensions are supported:
+
+✅ 8-bit MIME
+Security
+The following security extensions are supported:
+
+✅ Partial signing of messages using DKIM
+Other
+✅ Mailto parsing mailto links
+✅ Email provider auto-discovery Discover settings for an email address
+Supported encodings
+Character encodings:
+
+ASCII (7bit)
+UTF-8 (uft8, 8bit)
+ISO-8859-1 (latin-1)
+ISO-8859-2 - 16 (latin-2 - 16)
+Windows-1250, 1251, 1252, 1253, 1254 and 1256
+GB-2312, GBK, GB-18030, Chinese, CSGB-2312, CSGB-231280, CSISO-58-GB-231280, ISO-IR-58, X-Mac-ChineseSimp
+Big5
+KOI8-r and KOI8-u
+Transfer encodings:
+
+Quoted-Printable (Q)
+Base-64 (base64)
+To do
+Compare issues
+Develop and Contribute
+To start check out the package and then run dart run test to run all tests.
+Public facing library classes are in lib, lib/imap and lib/smtp.
+Private classes are in lib/src.
+Test cases are in test.
+Please file a pull request for each improvement/fix that you are create - your contributions are welcome.
+Check out https://github.com/enough-Software/enough_mail/contribute for good first issues.
+When changing model files, re-run the code generation by calling dart run build_runner build --delete-conflicting-outputs.
+License
+enough_mail is licensed under the commercial friendly Mozilla Public License 2.0.
+
+Libraries
+codecs
+Email codec classes
+discover
+Discovers email settings based on an email address.
+enough_mail
+With enough_mail you can connect to any mail service via IMAP, POP3 and SMTP
+highlevel
+Highlevel email API
+imap
+Anything you need to fetch and process messages using the IMAP protocol.
+mime
+Base email classes
+pop
+Fetch messages using the POP3 protocol
+smtp
+Everything you need to send messages using the SMTP protocol.
+enough_mail package
+Libraries
+codecs
+discover
+enough_mail
+highlevel
+imap
+mime
+pop
+smtp
+enough_mail 2.1.7

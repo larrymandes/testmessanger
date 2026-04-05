@@ -45,3 +45,67 @@ windows/flutter/ephemeral/
 *.env
 *.env.*
 !.env.example
+
+# Documentation files - не грузим на GitHub
+*.md
+!README.md
+.kiro/steering/README.md
+
+# Build artifacts - вся сборочная хуйня
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.obj
+*.o
+*.exp
+*.pdb
+*.ilk
+*.cmake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Windows build
+windows/flutter/ephemeral/
+windows/flutter/generated_plugin_registrant.cc
+windows/flutter/generated_plugin_registrant.h
+windows/flutter/generated_plugins.cmake
+
+# Windows runner source (если не хочешь коммитить)
+windows/runner/*.cpp
+windows/runner/*.h
+windows/runner/*.rc
+windows/runner/*.manifest
+windows/runner/resources/
+windows/CMakeLists.txt
+windows/flutter/CMakeLists.txt
+windows/runner/CMakeLists.txt
+
+# Dart tool
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# IDE
+.vscode/
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Logs
+*.log
