@@ -1,0 +1,86 @@
+name: Build Telegram UI Kit Example (iOS)
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'telegram_ios_ui_kit-2.26.0/example/**'
+      - '.github/workflows/telegram-example-ios.yml'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-telegram-example-ios:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # Генерируем версию
+      - name: Generate version
+        id: version
+        run: |
+          VERSION="v$(date +'%Y.%m.%d-%H%M')-$(git rev-parse --short HEAD)"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+      
+      - name: Flutter doctor
+        run: flutter doctor -v
+      
+      - name: Get dependencies
+        working-directory: telegram_ios_ui_kit-2.26.0/example
+        run: flutter pub get
+      
+      - name: Add iOS permissions
+        working-directory: telegram_ios_ui_kit-2.26.0/example
+        run: |
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'For demo purposes'" ios/Runner/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'For demo purposes'" ios/Runner/Info.plist || true
+      
+      - name: Disable code signing in Podfile
+        working-directory: telegram_ios_ui_kit-2.26.0/example
+        run: |
+          # Вставляем код отключения signing в существующий post_install
+          perl -i -pe 's/(post_install do \|installer\|)/$1\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings["CODE_SIGNING_ALLOWED"] = "NO"\n      config.build_settings["CODE_SIGNING_REQUIRED"] = "NO"\n      config.build_settings["CODE_SIGN_IDENTITY"] = ""\n    end\n  end/' ios/Podfile
+      
+      - name: Install pods
+        working-directory: telegram_ios_ui_kit-2.26.0/example/ios
+        run: pod install
+      
+      - name: Clean build
+        working-directory: telegram_ios_ui_kit-2.26.0/example
+        run: flutter clean
+      
+      - name: Build iOS without codesign
+        working-directory: telegram_ios_ui_kit-2.26.0/example
+        run: |
+          flutter build ios --release --no-codesign
+          cd build/ios/iphoneos
+          mkdir Payload
+          cd Payload
+          ln -s ../Runner.app
+          cd ..
+          zip -r app.ipa Payload
+      
+      # Переименовываем IPA с версией
+      - name: Rename IPA with version
+        working-directory: telegram_ios_ui_kit-2.26.0/example
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          mv build/ios/iphoneos/app.ipa build/ios/iphoneos/telegram_ui_kit_example-$VERSION.ipa
+          echo "Renamed to: telegram_ui_kit_example-$VERSION.ipa"
+      
+      - name: Upload iOS IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: telegram-ui-kit-example-ios-${{ steps.version.outputs.VERSION }}
+          path: telegram_ios_ui_kit-2.26.0/example/build/ios/iphoneos/telegram_ui_kit_example-*.ipa
+          retention-days: 30
+

@@ -9,29 +9,25 @@ import 'logger_service.dart';
 /// Получает информацию о треке и проигрывает 30-секундный отрывок
 class YandexMusicService {
   final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isPlaying = false;
   
-  /// Извлечь Track ID из ссылки или вернуть как есть если это просто цифры
-  /// 
-  /// Примеры:
-  /// - "149601172" → "149601172"
-  /// - "https://music.yandex.ru/album/41305001/track/149601172" → "149601172"
-  /// - "https://music.yandex.ru/album/41305001/track/149601172?utm_source=..." → "149601172"
-  static String extractTrackId(String input) {
+  /// Извлечь Track ID из строки (число или ссылка)
+  String? extractTrackId(String input) {
     final trimmed = input.trim();
     
-    // Если это просто цифры - возвращаем как есть
+    // Если это просто число
     if (RegExp(r'^\d+$').hasMatch(trimmed)) {
       return trimmed;
     }
     
-    // Пытаемся извлечь из ссылки
-    final match = RegExp(r'/track/(\d+)').firstMatch(trimmed);
+    // Если это ссылка: https://music.yandex.ru/album/41305001/track/149601172
+    final urlPattern = RegExp(r'/track/(\d+)');
+    final match = urlPattern.firstMatch(trimmed);
     if (match != null) {
-      return match.group(1)!;
+      return match.group(1);
     }
     
-    // Если не удалось извлечь - возвращаем как есть
-    return trimmed;
+    return null;
   }
   
   /// Получить информацию о треке (название, артист, обложка)
@@ -161,17 +157,22 @@ class YandexMusicService {
       final previewUrl = await getPreviewUrl(trackId);
       if (previewUrl == null) {
         LoggerService.log('YandexMusic: Cannot play - no preview URL');
-        throw Exception('Cannot get preview URL');
+        throw Exception('Не удалось получить ссылку на трек');
       }
       
-      LoggerService.log('YandexMusic: Preview URL: $previewUrl');
+      LoggerService.log('YandexMusic: Setting source: $previewUrl');
+      
+      // Останавливаем если что-то играет
+      await _audioPlayer.stop();
       
       // Загружаем и проигрываем
       await _audioPlayer.play(UrlSource(previewUrl));
+      _isPlaying = true;
       
       LoggerService.log('YandexMusic: ✅ Playing');
     } catch (e) {
       LoggerService.log('YandexMusic: Error playing track: $e');
+      _isPlaying = false;
       rethrow;
     }
   }
@@ -179,26 +180,35 @@ class YandexMusicService {
   /// Остановить проигрывание
   Future<void> stop() async {
     await _audioPlayer.stop();
+    _isPlaying = false;
     LoggerService.log('YandexMusic: Stopped');
   }
   
   /// Пауза
   Future<void> pause() async {
     await _audioPlayer.pause();
+    _isPlaying = false;
     LoggerService.log('YandexMusic: Paused');
   }
   
   /// Возобновить
   Future<void> resume() async {
     await _audioPlayer.resume();
+    _isPlaying = true;
     LoggerService.log('YandexMusic: Resumed');
   }
   
+  /// Перемотать на позицию
+  Future<void> seek(Duration position) async {
+    await _audioPlayer.seek(position);
+    LoggerService.log('YandexMusic: Seeked to ${position.inSeconds}s');
+  }
+  
   /// Проверить играет ли сейчас
-  bool get isPlaying => _audioPlayer.state == PlayerState.playing;
+  bool get isPlaying => _isPlaying;
   
   /// Stream состояния проигрывания
-  Stream<PlayerState> get stateStream => _audioPlayer.onPlayerStateChanged;
+  Stream<PlayerState> get playerStateStream => _audioPlayer.onPlayerStateChanged;
   
   /// Stream позиции
   Stream<Duration> get positionStream => _audioPlayer.onPositionChanged;

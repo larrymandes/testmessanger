@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../services/crypto_service.dart';
 import '../services/storage_service.dart';
 import '../services/logger_service.dart';
@@ -30,11 +31,44 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
   String _contactYandexTrackId = ''; // ✅ Yandex Track ID контакта
   Map<String, String?>? _trackInfo; // ✅ Информация о треке
   final YandexMusicService _yandexMusic = YandexMusicService(); // ✅ Сервис для Яндекс.Музыки
+  bool _isPlaying = false; // ✅ Состояние плеера
+  Duration _position = Duration.zero; // ✅ Текущая позиция
+  Duration _duration = Duration.zero; // ✅ Длительность трека
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _setupPlayerListeners();
+  }
+  
+  void _setupPlayerListeners() {
+    // Слушаем изменения состояния плеера
+    _yandexMusic.playerStateStream.listen((state) {
+      if (mounted) {
+        setState(() {
+          _isPlaying = state == PlayerState.playing;
+        });
+      }
+    });
+    
+    // Слушаем изменения позиции
+    _yandexMusic.positionStream.listen((position) {
+      if (mounted) {
+        setState(() {
+          _position = position;
+        });
+      }
+    });
+    
+    // Слушаем изменения длительности
+    _yandexMusic.durationStream.listen((duration) {
+      if (mounted) {
+        setState(() {
+          _duration = duration;
+        });
+      }
+    });
   }
 
   Future<void> _loadData() async {
@@ -111,22 +145,33 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
     }
   }
   
-  Future<void> _playTrack() async {
+  Future<void> _togglePlayPause() async {
     try {
-      LoggerService.log('ContactProfileScreen: Playing track $_contactYandexTrackId');
-      await _yandexMusic.playTrack(_contactYandexTrackId);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('🎵 Проигрывание...'),
-            duration: Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+      if (_isPlaying) {
+        // Пауза
+        await _yandexMusic.pause();
+      } else {
+        // Если позиция > 0, значит на паузе - возобновляем
+        if (_position.inSeconds > 0 && _duration.inSeconds > 0) {
+          await _yandexMusic.resume();
+        } else {
+          // Иначе начинаем с начала
+          LoggerService.log('ContactProfileScreen: Playing track $_contactYandexTrackId');
+          await _yandexMusic.playTrack(_contactYandexTrackId);
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('🎵 Проигрывание...'),
+                duration: Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        }
       }
     } catch (e) {
-      LoggerService.log('ContactProfileScreen: Error playing track: $e');
+      LoggerService.log('ContactProfileScreen: Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -137,6 +182,13 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
           ),
         );
       }
+    }
+  }
+  
+  Future<void> _stopTrack() async {
+    await _yandexMusic.stop();
+    if (mounted) {
+      setState(() => _isPlaying = false);
     }
   }
 
@@ -453,24 +505,89 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 8),
-                      
-                      // Кнопка Play
-                      ElevatedButton.icon(
-                        onPressed: _playTrack,
-                        icon: const Icon(Icons.play_arrow, size: 20),
-                        label: const Text('Послушать (30 сек)'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.purple,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        ),
-                      ),
                     ],
                   ),
                 ),
               ],
             ),
+            
+            // Плеер (если трек загружен или играет)
+            if (_duration.inSeconds > 0 || _isPlaying) ...[
+              const SizedBox(height: 12),
+              
+              // Ползунок
+              Column(
+                children: [
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: Colors.purple,
+                      inactiveTrackColor: Colors.grey[700],
+                      thumbColor: Colors.purple,
+                      overlayColor: Colors.purple.withOpacity(0.2),
+                      trackHeight: 3,
+                    ),
+                    child: Slider(
+                      value: _position.inSeconds.toDouble(),
+                      max: _duration.inSeconds > 0 ? _duration.inSeconds.toDouble() : 30.0,
+                      onChanged: (value) {
+                        _yandexMusic.seek(Duration(seconds: value.toInt()));
+                      },
+                    ),
+                  ),
+                  
+                  // Время
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _formatDuration(_position),
+                          style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                        ),
+                        Text(
+                          _formatDuration(_duration),
+                          style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 8),
+                  
+                  // Кнопка Play/Pause
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: _togglePlayPause,
+                        icon: Icon(
+                          _isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                          size: 48,
+                          color: Colors.purple,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ] else if (_trackInfo != null) ...[
+              const SizedBox(height: 12),
+              
+              // Кнопка "Играть" если трек ещё не загружен
+              Center(
+                child: ElevatedButton.icon(
+                  onPressed: _togglePlayPause,
+                  icon: const Icon(Icons.play_arrow, size: 20),
+                  label: const Text('Послушать (30 сек)'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                ),
+              ),
+            ],
         ],
       ),
     );
@@ -562,6 +679,12 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
       ),
     );
   }
+  
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds % 60;
+    return '${minutes.toString().padLeft(1, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
 
   String _formatPublicKey(String key) {
     // Убираем заголовки
@@ -613,6 +736,7 @@ class _ContactProfileScreenState extends State<ContactProfileScreen> {
   
   @override
   void dispose() {
+    _yandexMusic.stop(); // ✅ Останавливаем плеер
     _yandexMusic.dispose(); // ✅ Освобождаем ресурсы аудио плеера
     super.dispose();
   }

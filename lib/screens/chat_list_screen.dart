@@ -554,18 +554,22 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Введите ID трека из Яндекс.Музыки',
+              'Введите ID трека или ссылку из Яндекс.Музыки',
               style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Например: 147457409 или https://music.yandex.ru/album/.../track/147457409',
+              style: TextStyle(fontSize: 10, color: Colors.grey),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: controller,
               decoration: const InputDecoration(
-                labelText: 'Track ID',
-                hintText: 'Например: 147457409',
+                labelText: 'Track ID или ссылка',
+                hintText: '147457409',
               ),
-              keyboardType: TextInputType.number,
-              maxLength: 20,
+              maxLength: 200,
             ),
           ],
         ),
@@ -576,9 +580,27 @@ class _ChatListScreenState extends State<ChatListScreen> with WidgetsBindingObse
           ),
           TextButton(
             onPressed: () async {
-              final trackId = controller.text.trim();
+              final input = controller.text.trim();
               
               try {
+                // Парсим Track ID из строки (число или ссылка)
+                String trackId = '';
+                if (input.isNotEmpty) {
+                  // Если это просто число
+                  if (RegExp(r'^\d+$').hasMatch(input)) {
+                    trackId = input;
+                  } else {
+                    // Если это ссылка: https://music.yandex.ru/album/41305001/track/149601172
+                    final urlPattern = RegExp(r'/track/(\d+)');
+                    final match = urlPattern.firstMatch(input);
+                    if (match != null) {
+                      trackId = match.group(1)!;
+                    } else {
+                      throw Exception('Неверный формат. Введите Track ID (число) или ссылку на трек');
+                    }
+                  }
+                }
+                
                 // Сохраняем Track ID
                 await StorageService.updateAccountYandexTrackId(widget.email, trackId);
                 
