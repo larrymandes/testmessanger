@@ -34,6 +34,10 @@ jobs:
       - name: Flutter doctor
         run: flutter doctor -v
       
+      - name: Create iOS project
+        working-directory: telegram_ios_ui_kit-2.26.0/example
+        run: flutter create . --platforms=ios
+      
       - name: Get dependencies
         working-directory: telegram_ios_ui_kit-2.26.0/example
         run: flutter pub get
