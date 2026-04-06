@@ -109,14 +109,3 @@ pubspec.lock
 
 # Logs
 *.log
-
-# Telegram UI Kit Example - НЕ коммитим билд файлы
-telegram_ios_ui_kit-2.26.0/example/windows/
-telegram_ios_ui_kit-2.26.0/example/build/
-telegram_ios_ui_kit-2.26.0/example/.dart_tool/
-telegram_ios_ui_kit-2.26.0/example/.idea/
-telegram_ios_ui_kit-2.26.0/example/*.iml
-telegram_ios_ui_kit-2.26.0/example/.flutter-plugins
-telegram_ios_ui_kit-2.26.0/example/.flutter-plugins-dependencies
-telegram_ios_ui_kit-2.26.0/example/.packages
-telegram_ios_ui_kit-2.26.0/example/pubspec.lock

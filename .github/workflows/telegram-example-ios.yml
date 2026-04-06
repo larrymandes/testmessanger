@@ -18,7 +18,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      # Генерируем версию
       - name: Generate version
         id: version
         run: |
@@ -46,57 +45,30 @@ jobs:
         working-directory: telegram_ios_ui_kit-2.26.0/example
         run: flutter pub get
       
-      - name: Generate Podfile (run flutter build to create it)
-        working-directory: telegram_ios_ui_kit-2.26.0/example
-        run: |
-          flutter build ios --release --no-codesign || true
-          # Это создаст Podfile, но билд упадёт - это нормально
-      
-      - name: Add iOS permissions
-        working-directory: telegram_ios_ui_kit-2.26.0/example
-        run: |
-          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'For demo purposes'" ios/Runner/Info.plist || true
-          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'For demo purposes'" ios/Runner/Info.plist || true
-      
-      - name: Disable code signing in Podfile
-        working-directory: telegram_ios_ui_kit-2.26.0/example
-        run: |
-          if [ -f ios/Podfile ]; then
-            # Вставляем код отключения signing в существующий post_install
-            perl -i -pe 's/(post_install do \|installer\|)/$1\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings["CODE_SIGNING_ALLOWED"] = "NO"\n      config.build_settings["CODE_SIGNING_REQUIRED"] = "NO"\n      config.build_settings["CODE_SIGN_IDENTITY"] = ""\n    end\n  end/' ios/Podfile
-          fi
-      
-      - name: Install pods
-        working-directory: telegram_ios_ui_kit-2.26.0/example/ios
-        run: pod install
-      
-      - name: Clean build
-        working-directory: telegram_ios_ui_kit-2.26.0/example
-        run: flutter clean
-      
       - name: Build iOS without codesign
         working-directory: telegram_ios_ui_kit-2.26.0/example
-        run: |
-          flutter build ios --release --no-codesign
-          cd build/ios/iphoneos
-          mkdir Payload
-          cd Payload
-          ln -s ../Runner.app
-          cd ..
-          zip -r app.ipa Payload
+        run: flutter build ios --release --no-codesign
       
-      # Переименовываем IPA с версией
-      - name: Rename IPA with version
+      - name: Create IPA
         working-directory: telegram_ios_ui_kit-2.26.0/example
         run: |
+          cd build/ios/iphoneos
+          mkdir Payload
+          cp -r Runner.app Payload/
           VERSION="${{ steps.version.outputs.VERSION }}"
-          mv build/ios/iphoneos/app.ipa build/ios/iphoneos/telegram_ui_kit_example-$VERSION.ipa
-          echo "Renamed to: telegram_ui_kit_example-$VERSION.ipa"
+          zip -r telegram_ui_kit_example-$VERSION.ipa Payload
       
       - name: Upload iOS IPA
         uses: actions/upload-artifact@v4
         with:
           name: telegram-ui-kit-example-ios-${{ steps.version.outputs.VERSION }}
           path: telegram_ios_ui_kit-2.26.0/example/build/ios/iphoneos/telegram_ui_kit_example-*.ipa
+          retention-days: 30
+      
+      - name: Upload Runner.app
+        uses: actions/upload-artifact@v4
+        with:
+          name: telegram-ui-kit-example-runner-app-${{ steps.version.outputs.VERSION }}
+          path: telegram_ios_ui_kit-2.26.0/example/build/ios/iphoneos/Runner.app
           retention-days: 30
 
