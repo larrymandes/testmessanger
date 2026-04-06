@@ -46,6 +46,12 @@ jobs:
         working-directory: telegram_ios_ui_kit-2.26.0/example
         run: flutter pub get
       
+      - name: Generate Podfile (run flutter build to create it)
+        working-directory: telegram_ios_ui_kit-2.26.0/example
+        run: |
+          flutter build ios --release --no-codesign || true
+          # Это создаст Podfile, но билд упадёт - это нормально
+      
       - name: Add iOS permissions
         working-directory: telegram_ios_ui_kit-2.26.0/example
         run: |
@@ -55,8 +61,10 @@ jobs:
       - name: Disable code signing in Podfile
         working-directory: telegram_ios_ui_kit-2.26.0/example
         run: |
-          # Вставляем код отключения signing в существующий post_install
-          perl -i -pe 's/(post_install do \|installer\|)/$1\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings["CODE_SIGNING_ALLOWED"] = "NO"\n      config.build_settings["CODE_SIGNING_REQUIRED"] = "NO"\n      config.build_settings["CODE_SIGN_IDENTITY"] = ""\n    end\n  end/' ios/Podfile
+          if [ -f ios/Podfile ]; then
+            # Вставляем код отключения signing в существующий post_install
+            perl -i -pe 's/(post_install do \|installer\|)/$1\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings["CODE_SIGNING_ALLOWED"] = "NO"\n      config.build_settings["CODE_SIGNING_REQUIRED"] = "NO"\n      config.build_settings["CODE_SIGN_IDENTITY"] = ""\n    end\n  end/' ios/Podfile
+          fi
       
       - name: Install pods
         working-directory: telegram_ios_ui_kit-2.26.0/example/ios
