@@ -34,6 +34,10 @@ jobs:
       - name: Flutter doctor
         run: flutter doctor -v
       
+      - name: Remove existing iOS folder
+        working-directory: telegram_ios_ui_kit-2.26.0/example
+        run: rm -rf ios
+      
       - name: Create iOS project
         working-directory: telegram_ios_ui_kit-2.26.0/example
         run: flutter create . --platforms=ios
